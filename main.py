@@ -13,6 +13,7 @@ from src.config import (
     PSEUDO_ID_MAPPING_PRIVATE_TABLE,
     IMAGE_CALIBRATION_TABLE,
     CALIBRATION_REFERENCES_TABLE,
+    VERIFICATION_DIR,
     create_output_folders,
 )
 
@@ -33,7 +34,12 @@ from src.quality_control import (
 )
 
 from src.pseudonymization import pseudonymize_preprocessed_table
-from src.image_calibration import save_image_calibration_table
+
+from src.image_calibration import (
+    save_image_calibration_table,
+    run_height_experiment_1_auto,
+    summarize_height_experiment_1,
+)
 
 
 def read_files(site: str):
@@ -102,8 +108,11 @@ def main():
 
     colombia_equalized, barcelona_equalized = save_equalized_tables()
 
-    print("\nColombia equalized:", colombia_equalized.shape)
-    print("Barcelona equalized:", barcelona_equalized.shape)
+    print("\nColombia equalized:")
+    print(colombia_equalized.shape)
+
+    print("\nBarcelona equalized:")
+    print(barcelona_equalized.shape)
 
     print("\nColumns are equal:")
     print(list(colombia_equalized.columns) == list(barcelona_equalized.columns))
@@ -207,8 +216,8 @@ def main():
     # ========================================================
 
     # This step estimates the cm/pixel scale for each Colombia image.
-    # It also saves verification images so we can visually check if the
-    # ArUco markers were detected correctly.
+    # It also saves verification images so we can visually check whether
+    # the ArUco markers were detected correctly.
     calibration_df, calibration_references_df = save_image_calibration_table(
         assets_by_subject=assets_by_subject,
         save_debug=True,
@@ -227,6 +236,53 @@ def main():
 
     print("\nNumber of detected references per image:")
     print(calibration_df["n_references_detected"].value_counts(dropna=False).sort_index())
+
+    # ========================================================
+    # EXPERIMENT 1: AUTOMATIC HEIGHT ESTIMATION
+    # ========================================================
+
+    # This first experiment tests whether the ArUco-derived scales can provide
+    # a preliminary height estimate when head and feet points are extracted
+    # automatically from the body silhouette.
+    #
+    # It compares three simple scale strategies:
+    #   1. median scale from all detected references
+    #   2. scale from the best-quality reference
+    #   3. scale from the reference closest to the detected feet point
+    #
+    # The goal is not to obtain the final method yet, but to evaluate whether
+    # a simple pixel-to-centimeter approach is reasonable before moving to
+    # more advanced projective geometry methods.
+    height_exp1_df = run_height_experiment_1_auto(
+        assets_by_subject=assets_by_subject,
+        calibration_df=calibration_df,
+        references_df=calibration_references_df,
+        manual_heights_df=colombia_equalized,
+        max_images=5,
+        save_debug=True,
+    )
+
+    height_exp1_summary = summarize_height_experiment_1(height_exp1_df)
+
+    print("\nExperiment 1 automatic height estimates saved:")
+    print(f"  - {VERIFICATION_DIR / 'height_estimates_experiment1.csv'}")
+    print(height_exp1_df.shape)
+
+    print("\nExperiment 1 summary saved:")
+    print(f"  - {VERIFICATION_DIR / 'height_estimates_experiment1_summary.csv'}")
+    print(height_exp1_summary)
+
+    if not height_exp1_df.empty:
+        print("\nExperiment 1 mean absolute errors:")
+        print(
+            height_exp1_df[
+                [
+                    "error_cm_median_scale",
+                    "error_cm_best_quality_scale",
+                    "error_cm_closest_feet_scale",
+                ]
+            ].abs().mean()
+        )
 
     print("\nDone.")
 
