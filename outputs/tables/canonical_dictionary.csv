@@ -1,0 +1,28 @@
+canonical_name,category,unit,definition,colombia_source,barcelona_source,processing,notes
+ID,metadata,,Original subject identifier.,ID,Code,Direct mapping.,Kept in equalized tables. Replaced by ANON_ID in preprocessed tables.
+TYPE,metadata,,Clinical group of the subject: Turner syndrome or control.,TYPE,Type,Direct mapping.,Used for group-wise comparison and median imputation if needed.
+AGE,general,years,Subject age at acquisition.,AGE,Age,Direct mapping.,Age is kept as metadata and possible confounder.
+HEIGHT_cm,general,cm,Standing body height.,HEIGHT_cm,Altura_m,Barcelona height converted from meters to centimeters.,Used for BMI calculation and later normalized indices.
+WEIGHT_kg,general,kg,Body weight.,WEIGHT_kg,Peso_kg,Direct mapping.,
+IMC_kg_m2,general,kg/m2,Body mass index.,computed from HEIGHT_cm and WEIGHT_kg,computed from HEIGHT_cm and WEIGHT_kg,Recomputed as weight divided by squared height in meters.,Recomputed for both datasets to ensure consistency.
+PER_Skull_cm,head_neck,cm,Skull/head perimeter.,PER_Skull_cm,Perimetro_craneal_cm,Direct mapping.,
+PER_Neck_cm,head_neck,cm,Neck perimeter.,PER_Neck_cm,Perimetro_cuello_cm,Direct mapping.,
+THICK_WingedNeck_cm,head_neck,cm,Thickness or width associated with winged neck morphology.,THICK_WingedNeck_cm,Grosor_cuello_alado_cm,Direct mapping.,Potentially relevant feature for Turner syndrome phenotype.
+DIST_SupScapularAngToC7_AVG_cm,back_torso,cm,Average distance from superior scapular angle to C7.,DIST_SupScapularAngToC7_RIGHT_cm; DIST_SupScapularAngToC7_LEFT_cm,Distancia de angulo superior escapular a C7,Colombia right/left averaged. Barcelona mapped as available measurement.,Equalized to a single comparable measurement.
+DIST_SupScapularAngToT10_AVG_cm,back_torso,cm,Average distance from superior scapular angle to T10.,DIST_SupScapularAngToT10_RIGHT_cm; DIST_SupScapularAngToT10_LEFT_cm,Distancia de angulo superior escapular a T10,Colombia right/left averaged. Barcelona mapped as available measurement.,Equalized to a single comparable measurement.
+DIST_C7ToT10_cm,back_torso,cm,Distance from C7 vertebra to T10 vertebra.,DIST_C7ToT10_cm,Distancia_C7_t10,Direct mapping.,
+LONG_Arm_AVG_cm,arm,cm,Average total arm length.,LONG_Arm_AVG_cm,Longitud_brazo_derecho_cm; Longitud_brazo_izquierdo_cm,Barcelona right/left averaged to match Colombia.,Existing equalized rule preserved.
+DIST_UpperArm_AVG_cm,arm,cm,Average upper arm distance.,DIST_UpperArm_AVG_cm,Distancia_brazo_derecho_cm; Distancia_brazo_izquierdo_cm,Barcelona right/left averaged to match Colombia.,Existing equalized rule preserved.
+DIST_Forearm_AVG_cm,arm,cm,Average forearm distance.,DIST_Forearm_AVG_cm,Distancia_antebrazo_derecho_cm; Distancia_antebrazo_izquierdo_cm,Barcelona right/left averaged to match Colombia.,Existing equalized rule preserved.
+DIST_Hand_AVG_cm,arm,cm,Hand length or wrist-to-third-finger distance.,DIST_Hand_AVG_cm,Distancia_muneca_a_dedo3_cm,Mapped as available measurement.,Equalized as a single comparable measurement.
+LONG_Leg_AVG_cm,leg,cm,Average total leg length.,LONG_Leg_AVG_cm,Longitud_pierna_derecha_cm; Longitud_pierna_izquierda_cm,Barcelona right/left averaged to match Colombia.,Existing equalized rule preserved.
+DIST_Thigh_AVG_cm,leg,cm,Average thigh distance.,DIST_Thigh_AVG_cm,Distancia_muslo_derecho_cm; Distancia_muslo_izquierdo_cm,Barcelona right/left averaged to match Colombia.,Existing equalized rule preserved.
+DIST_LowerLeg_LATERAL_AVG_cm,leg,cm,Average lateral lower leg distance.,DIST_LowerLeg_LATERAL_AVG_cm,Distancia_pantorrilla_derecha_cm; Distancia_pantorrilla_izquierda_cm,Barcelona right/left averaged to match Colombia.,Existing equalized rule preserved.
+DIST_LowerLeg_MEDIAL_AVG_cm,leg,cm,Medial lower leg distance.,DIST_LowerLeg_MEDIAL_AVG_cm,Distancia_condilo_medial_tibia_a_maleolo_medial_cm,Mapped as available measurement.,Equalized as a single comparable measurement because bilateral information is not consistently available.
+DIST_Foot_AVG_cm,leg,cm,Foot length.,DIST_Foot_AVG_cm,Distancia_astragalo_a_dedo2_pie_cm,Mapped as available measurement.,Equalized as a single comparable measurement.
+PER_Abdominal_cm,torso,cm,Abdominal perimeter.,PER_Abdominal_cm,Perimetro_abdominal_cm,Direct mapping.,
+DIST_BetweenSupAntIliacCrest_cm,torso,cm,Distance between right and left anterior superior iliac crests.,DIST_BetweenSupAntIliacCrest_cm,Distancia de cresta ilíaca antero superior a cresta ilíaca antero superior,Direct mapping.,
+PER_Hip_cm,torso,cm,Hip perimeter.,PER_Hip_cm,Perimetro_cadera_cm,Direct mapping.,
+DIST_SternalEndClavicleToSternalManubrium_AVG_cm,torso,cm,Average distance from sternal end of clavicle to sternal manubrium.,DIST_SternalEndClavicleToSternalManubrium_RIGHT_cm; DIST_SternalEndClavicleToSternalManubrium_LEFT_cm,Distancia_extremo_esternal_clavicula_a_manubrio_esternal_cm,Colombia right/left averaged. Barcelona mapped as available measurement.,Equalized as a single comparable measurement.
+DIST_ManubriumToXiphoidApophysis_cm,torso,cm,Distance from sternal manubrium to xiphoid apophysis.,DIST_ManubriumToXiphoidApophysis_cm,Distancia_manubrio_a_apofisis_xifoides_cm,Direct mapping.,
+DIST_ManubriumToCentralNavel_cm,torso,cm,Distance from sternal manubrium to central navel.,DIST_ManubriumToCentralNavel_cm,Distancia_manubrio_a_ombligo_cm,Direct mapping.,

@@ -1,0 +1,28 @@
+# Entorno virtual
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+
+# PyCharm
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Imágenes
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.bmp
+*.tif
+*.tiff
+*.gif
+
+# Outputs generados
+outputs/private
