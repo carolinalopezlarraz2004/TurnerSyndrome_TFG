@@ -16,6 +16,7 @@ Salidas:
 Experimento 1:
 Segmentacion con YOLO11-seg + refinamiento de cabeza/pies con YOLO11-pose.
 - PIES: tobillo para acotar + mascara para el contacto con el suelo.
+  En front/back, si se ven ambos tobillos, usa el punto medio entre ambos pies.
 - CABEZA: corona por offset sobre la linea de ojos (ignora pelo/mono).
 Ademas: flag de perspectiva por imagen (cube_scale_ratio) y datos crudos de
 pose (pose_eye_y, pose_face_scale, pose_face_mode) para poder calibrar el
@@ -623,28 +624,22 @@ def get_pose_keypoints(image: np.ndarray):
     return kdata[idx]
 
 
-def feet_from_pose(mask: np.ndarray, kpts, bbox_w: float):
+def _contact_point_near_ankle(mask: np.ndarray, ankle_x: float, ankle_y: float,
+                              bbox_w: float) -> tuple[int, int] | None:
     """
-    Punto de apoyo usando el tobillo para acotar y la mascara para el contacto.
-    Devuelve (feet_x, feet_y) o None.
+    Busca el punto de contacto del pie con el suelo cerca de un tobillo.
+
+    En vez de usar directamente la coordenada del tobillo, se usa el tobillo
+    solo para acotar una ventana horizontal y se busca la parte inferior de la
+    mascara dentro de esa ventana.
     """
-    if kpts is None:
-        return None
-
-    ankles = [kpts[KP_LANKLE], kpts[KP_RANKLE]]
-    ankles = [k for k in ankles if k[2] >= POSE_CONF]
-    if not ankles:
-        return None
-
-    ankle_x = float(np.mean([k[0] for k in ankles]))
-    ankle_y = float(max(k[1] for k in ankles))
-    window = max(FOOT_WINDOW_FRAC * bbox_w, 15.0)
-
     ys, xs = np.where(mask > 0)
     if len(xs) == 0:
         return None
 
+    window = max(FOOT_WINDOW_FRAC * bbox_w, 15.0)
     sel = np.abs(xs - ankle_x) <= window
+
     if sel.sum() < 5:
         return None
 
@@ -657,10 +652,71 @@ def feet_from_pose(mask: np.ndarray, kpts, bbox_w: float):
     if ground_y > ankle_y + max_foot:
         ground_y = int(ankle_y + max_foot)
 
-    band = max(int(0.02 * (ground_y - ankle_y + 1)), 4)
-    bottom = sel & (ys >= ground_y - band)
-    feet_x = int(np.median(xs[bottom])) if bottom.sum() > 0 else int(ankle_x)
-    return feet_x, ground_y
+    # Tomamos una pequena banda inferior para que el x no dependa de un solo pixel.
+    band = max(int(0.02 * body_h), 4)
+    bottom = sel & (ys >= ground_y - band) & (ys <= ground_y)
+
+    if bottom.sum() > 0:
+        contact_x = int(np.median(xs[bottom]))
+    else:
+        contact_x = int(round(ankle_x))
+
+    return contact_x, ground_y
+
+
+def feet_from_pose(mask: np.ndarray, kpts, bbox_w: float, view: str | None = None):
+    """
+    Punto de apoyo usando tobillos + mascara.
+
+    Para front/back:
+        si se detectan los dos tobillos, calcula el punto medio entre ambos
+        contactos de pie. Esto da una vertical corporal mas coherente que usar
+        un unico pie.
+
+    Para left/right o cuando solo hay un tobillo:
+        usa el contacto del pie visible.
+    """
+    if kpts is None:
+        return None
+
+    left_ankle = kpts[KP_LANKLE]
+    right_ankle = kpts[KP_RANKLE]
+
+    valid_ankles = []
+    if left_ankle[2] >= POSE_CONF:
+        valid_ankles.append(("left", left_ankle))
+    if right_ankle[2] >= POSE_CONF:
+        valid_ankles.append(("right", right_ankle))
+
+    if not valid_ankles:
+        return None
+
+    contact_points = []
+    for side, ankle in valid_ankles:
+        contact = _contact_point_near_ankle(
+            mask=mask,
+            ankle_x=float(ankle[0]),
+            ankle_y=float(ankle[1]),
+            bbox_w=bbox_w,
+        )
+        if contact is not None:
+            contact_points.append((side, contact))
+
+    if not contact_points:
+        return None
+
+    normalized_view = str(view).lower() if view is not None else ""
+
+    # En front/back, si tenemos ambos pies, usamos el punto medio de apoyo.
+    if normalized_view in ["front", "back"] and len(contact_points) >= 2:
+        points = [point for _, point in contact_points]
+        feet_x = int(round(np.mean([p[0] for p in points])))
+        feet_y = int(round(np.mean([p[1] for p in points])))
+        return feet_x, feet_y, "pose_midfeet"
+
+    # En laterales o si solo hay un pie, usamos el contacto mas bajo.
+    selected_point = sorted(contact_points, key=lambda item: item[1][1], reverse=True)[0][1]
+    return int(selected_point[0]), int(selected_point[1]), "pose_singlefoot"
 
 
 def head_from_pose(mask: np.ndarray, kpts):
@@ -763,11 +819,15 @@ def get_head_feet_from_mask(mask: np.ndarray) -> dict:
     }
 
 
-def get_head_feet(image: np.ndarray, body_mask: np.ndarray) -> dict:
+def get_head_feet(image: np.ndarray, body_mask: np.ndarray,
+                  view: str | None = None) -> dict:
     """
     Cabeza y pies combinando mascara (fallback) con pose (refinamiento).
     Registra la fuente usada (pose/mask) y, para la cabeza por pose, los datos
     crudos (pose_eye_y, pose_face_scale, pose_face_mode).
+
+    En vistas front/back, si pose detecta ambos tobillos, el punto de pies se
+    redefine como el punto medio entre ambos contactos de pie.
     """
     landmarks = get_head_feet_from_mask(body_mask)
     landmarks["head_source"] = "mask"
@@ -787,10 +847,10 @@ def get_head_feet(image: np.ndarray, body_mask: np.ndarray) -> dict:
 
     kpts = get_pose_keypoints(image)
 
-    feet_pose = feet_from_pose(mask, kpts, bbox_w)
+    feet_pose = feet_from_pose(mask, kpts, bbox_w, view=view)
     if feet_pose is not None:
-        landmarks["feet_x_px"], landmarks["feet_y_px"] = feet_pose
-        landmarks["feet_source"] = "pose"
+        landmarks["feet_x_px"], landmarks["feet_y_px"], feet_source = feet_pose
+        landmarks["feet_source"] = feet_source
 
     head_pose = head_from_pose(mask, kpts)
     if head_pose is not None:
@@ -805,13 +865,14 @@ def get_head_feet(image: np.ndarray, body_mask: np.ndarray) -> dict:
     return landmarks
 
 
-def estimate_body_height_pixels(image: np.ndarray) -> tuple[dict, np.ndarray]:
+def estimate_body_height_pixels(image: np.ndarray,
+                                view: str | None = None) -> tuple[dict, np.ndarray]:
     """
     Segmenta la persona (YOLO11-seg) y estima la altura cabeza-pies en pixeles,
     refinando los puntos con pose (YOLO11-pose). Devuelve (landmarks, body_mask).
     """
     body_mask, segmentation_status, component_info = segment_body(image)
-    landmarks = get_head_feet(image, body_mask)
+    landmarks = get_head_feet(image, body_mask, view=view)
 
     landmarks["segmentation_status"] = segmentation_status
     for key, value in component_info.items():
@@ -1153,7 +1214,10 @@ def run_height_experiment_1_auto(assets_by_subject: dict, calibration_df: pd.Dat
             if image is None:
                 continue
 
-            landmarks, body_mask = estimate_body_height_pixels(image)
+            landmarks, body_mask = estimate_body_height_pixels(
+                image=image,
+                view=asset.view,
+            )
 
             if str(landmarks["landmark_status"]).startswith("ok"):
                 status = "ok"
