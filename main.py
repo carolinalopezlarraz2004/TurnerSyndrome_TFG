@@ -41,6 +41,9 @@ from src.image_calibration import (
     summarize_height_experiment_1,
 )
 
+from src.image_calibration import (sweep_crown_offset_factor, plot_view_results, apply_calibrated_correction, compare_correction,)
+
+
 
 def read_files(site: str):
     """
@@ -258,7 +261,7 @@ def main():
         calibration_df=calibration_df,
         references_df=calibration_references_df,
         manual_heights_df=colombia_equalized,
-        max_images=5,
+        max_images=None,
         save_debug=True,
     )
 
@@ -283,6 +286,27 @@ def main():
                 ]
             ].abs().mean()
         )
+
+    print("\nSweep del offset de corona:")
+    sweep_crown_offset_factor(height_exp1_df, scale_column="scale_closest_feet")
+    sweep_crown_offset_factor(height_exp1_df, scale_column="scale_best_quality")
+
+    df = pd.read_csv(VERIFICATION_DIR / "height_estimates_experiment1.csv")
+
+    plot_view_results(df, view="back", method="ground_line_scale",
+                      save_path=VERIFICATION_DIR / "back_ground_line.png")
+
+    # aplica la correccion calibrada por vista (leave-one-out) y re-guarda el CSV
+    height_exp1_df = apply_calibrated_correction(
+        height_exp1_df, method="ground_line_scale", by="view"
+    )
+    height_exp1_df.to_csv(
+        VERIFICATION_DIR / "height_estimates_experiment1.csv", index=False
+    )
+
+    # tabla antes/despues
+    print("\nCorreccion calibrada (antes/despues):")
+    print(compare_correction(height_exp1_df, method="ground_line_scale").round(1).to_string(index=False))
 
     print("\nDone.")
 
