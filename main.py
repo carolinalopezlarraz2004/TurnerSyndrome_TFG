@@ -43,6 +43,7 @@ from src.image_calibration import (
 
 from src.image_calibration import (sweep_crown_offset_factor, plot_view_results, apply_calibrated_correction, compare_correction,)
 
+from src.criminisi_method import run_criminisi_experiment
 
 
 def read_files(site: str):
@@ -307,6 +308,20 @@ def main():
     # tabla antes/despues
     print("\nCorreccion calibrada (antes/despues):")
     print(compare_correction(height_exp1_df, method="ground_line_scale").round(1).to_string(index=False))
+
+    # ========================================================
+    # EXPERIMENT 2: CRIMINISI (metrologia de vista unica)
+    # ========================================================
+    criminisi_df = run_criminisi_experiment(
+        assets_by_subject=assets_by_subject,
+        manual_heights_df=colombia_equalized,
+        max_images=10,  # empieza con 10 para revisar las imagenes
+        save_debug=True,
+    )
+    print("\nCriminisi estimates guardados:")
+    print(f"  - {VERIFICATION_DIR / 'criminisi' / 'criminisi_estimates.csv'}")
+    print(criminisi_df["status"].value_counts())
+
 
     print("\nDone.")
 

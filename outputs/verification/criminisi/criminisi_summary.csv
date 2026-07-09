@@ -1,0 +1,6 @@
+grupo,detalle,n,bias_cm,mae_cm,rmse_cm
+estados,"{'ok': 4, 'no_ground_vanishing_line:one_direction(sep=0)': 2, 'no_ground_vanishing_line:not_enough_inliers': 2, 'no_ground_vanishing_line:one_direction(sep=13)': 1, 'no_ground_vanishing_line:one_direction(sep=5)': 1}",,,,
+GLOBAL,,4.0,-31.8,74.5,85.3
+back,,1.0,-81.8,81.8,81.8
+left,,2.0,-65.4,65.4,86.8
+right,,1.0,85.4,85.4,85.4
