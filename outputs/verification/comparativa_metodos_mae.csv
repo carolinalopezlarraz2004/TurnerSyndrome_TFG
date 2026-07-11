@@ -1,0 +1,8 @@
+metodo,front,back,left,right,FRONT+BACK,GLOBAL
+E1 escala suelo,14.9,8.0,18.9,19.9,11.5,15.4
+E1 escala mejor cara,15.2,13.1,18.0,18.0,14.1,16.1
+E1 suelo corregida*,4.3,3.2,10.7,10.5,3.8,7.2
+HZ via cubo,5.8,2.5,26.4,33.0,4.2,16.9
+HZ compartido,2.1,2.5,37.8,37.8,2.3,20.1
+HZ compartido pie single,2.1,2.5,38.8,38.2,2.3,20.4
+HZ compartido pie mask,2.9,2.6,37.8,37.8,2.7,20.3

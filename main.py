@@ -45,6 +45,8 @@ from src.image_calibration import (sweep_crown_offset_factor, plot_view_results,
 
 from src.criminisi_method import run_criminisi_experiment
 
+from src.horizon_method import run_horizon_experiment
+
 
 def read_files(site: str):
     """
@@ -322,9 +324,55 @@ def main():
     print(f"  - {VERIFICATION_DIR / 'criminisi' / 'criminisi_estimates.csv'}")
     print(criminisi_df["status"].value_counts())
 
+    # ========================================================
+    # EXPERIMENT 2: METODO DEL HORIZONTE (camara a 1 m)
+    # ========================================================
 
-    print("\nDone.")
+    horizon_df = run_horizon_experiment(
+        assets_by_subject=assets_by_subject,
+        manual_heights_df=colombia_equalized,
+        max_images=None,
+        save_debug=True,
+    )
 
+    print("\nExperimento 2 (horizonte) guardado:")
+    print(f"  - {VERIFICATION_DIR / 'horizon' / 'horizon_estimates.csv'}")
+    print(horizon_df["status"].value_counts())
+
+    h = pd.read_csv("outputs/verification/horizon/horizon_estimates.csv")
+
+    print("=== altura en pixeles y posicion de pies/cabeza por vista ===")
+    for v, g in h.groupby("view"):
+        print(f"{v:6s}  height_px medio={g.height_px.mean():7.1f}  "
+              f"y_feet medio={g.y_feet.mean():7.1f}  y_head medio={g.y_head.mean():7.1f}")
+
+    print("\n=== misma persona: cuanto mide de mas en lateral que en frontal ===")
+    piv = h.pivot_table(index="subject_id", columns="view",
+                        values="H_horizon_shared", aggfunc="mean")
+    print("left  - front  medio:", (piv["left"] - piv["front"]).mean().round(1), "cm")
+    print("right - front  medio:", (piv["right"] - piv["front"]).mean().round(1), "cm")
+    print("left  - back   medio:", (piv["left"] - piv["back"]).mean().round(1), "cm")
+    print("right - back   medio:", (piv["right"] - piv["back"]).mean().round(1), "cm")
+
+    print("\n=== descomposicion del +20: viene de la cabeza o de los pies? ===")
+    # comparamos, para cada sujeto, y_head e y_feet entre lateral y frontal
+    for col in ["y_head", "y_feet", "height_px"]:
+        p = h.pivot_table(index="subject_id", columns="view", values=col, aggfunc="mean")
+        dl = (p["left"] - p["front"]).mean()
+        dr = (p["right"] - p["front"]).mean()
+        print(f"{col:10s}  left-front={dl:+7.1f} px   right-front={dr:+7.1f} px")
+    lat = h[h.view.isin(["left", "right"])]
+    print("laterales: head_source usado ->", lat.head_source.value_counts().to_dict())
+    print("y_head medio en laterales (actual, desde ojos):", lat.y_head.mean().round(1))
+    h = h.dropna(subset=["y_feet", "y_head", "height_manual_cm"])
+    HC = 100.0
+
+    # horizonte "ideal" = el que haria la estimacion EXACTA en cada foto
+    h["y_horizon_ideal"] = h.y_feet - HC * (h.y_feet - h.y_head) / h.height_manual_cm
+
+    print("=== horizonte IDEAL por vista (el que daria altura correcta) ===")
+    print(h.groupby("view")["y_horizon_ideal"].agg(["mean", "std", "min", "max"]).round(1))
+    print("\nrecordatorio: el compartido global que uso ahora es y≈983")
 
 if __name__ == "__main__":
     main()
