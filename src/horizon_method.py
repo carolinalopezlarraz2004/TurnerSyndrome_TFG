@@ -32,7 +32,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 
-from src.config import VERIFICATION_DIR, ARUCO_MARKER_SIZE_CM
+from src.config import HORIZON_DIR, ARUCO_MARKER_SIZE_CM
 from src.image_calibration import (
     estimate_body_height_pixels,
     detect_aruco_markers,
@@ -45,7 +45,6 @@ try:
 except Exception:
     CAMERA_HEIGHT_CM = 100.0
 
-HORIZON_DIR = VERIFICATION_DIR / "horizon"
 MIN_EDGE_LEN_PX = 10.0
 RELIABLE_VIEWS = ("front", "back")
 

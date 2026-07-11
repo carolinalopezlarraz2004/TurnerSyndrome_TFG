@@ -1,5 +1,4 @@
 import pandas as pd
-
 from src.config import (
     COLOMBIA_DIR,
     BARCELONA_DIR,
@@ -16,211 +15,150 @@ from src.config import (
     VERIFICATION_DIR,
     create_output_folders,
 )
-
 from src.io_data import (
     discover_subject_images,
     load_colombia_table,
     load_barcelona_tables,
 )
-
 from src.harmonize_features import save_equalized_tables
 from src.data_dictionary import save_canonical_dictionary
-
 from src.quality_control import (
     add_quality_control_flags,
     impute_missing_values,
     combine_quality_reports,
     combine_flagged_values_reports,
 )
-
 from src.pseudonymization import pseudonymize_preprocessed_table
-
 from src.image_calibration import (
     save_image_calibration_table,
     run_height_experiment_1_auto,
     summarize_height_experiment_1,
 )
-
 from src.image_calibration import (sweep_crown_offset_factor, plot_view_results, apply_calibrated_correction, compare_correction,)
-
-from src.criminisi_method import run_criminisi_experiment
-
 from src.horizon_method import run_horizon_experiment
-
-
 def read_files(site: str):
     """
     Read and organize image files from one dataset.
     """
-
     site_dirs = {
         "CO": COLOMBIA_DIR,
         "ES": BARCELONA_DIR,
         "BR": BRASIL_DIR,
     }
-
     return discover_subject_images(site_dirs[site], site=site)
-
-
 def read_tables():
     """
     Read the original measurement tables.
     """
-
     colombia_df = load_colombia_table(COLOMBIA_TABLE)
     barcelona_sheets = load_barcelona_tables(BARCELONA_TABLE)
-
     return colombia_df, barcelona_sheets
-
-
 def main():
     # ========================================================
     # CREATE OUTPUT FOLDERS
     # ========================================================
-
     create_output_folders()
-
     # ========================================================
     # READ IMAGE FILES AND ORIGINAL TABLES
     # ========================================================
-
     # For now, we start with Colombia because the ArUco marker size is confirmed:
     # each marker is 10 cm x 10 cm.
     assets_by_subject = read_files("CO")
-
     colombia_df, barcelona_sheets = read_tables()
-
     print(f"Subjects found in Colombia image folder: {len(assets_by_subject)}")
-
     print("\nColombia table:")
     print(colombia_df.shape)
-
     print("\nBarcelona sheets:")
     for sheet_name, df in barcelona_sheets.items():
         print(f"  - {sheet_name}: {df.shape}")
-
     print("\nColombia columns:")
     print(colombia_df.columns.tolist())
-
     print("\nBarcelona Raw columns:")
     print(barcelona_sheets["Raw_Match_Anon"].columns.tolist())
-
     print("\nBarcelona Recon columns:")
     print(barcelona_sheets["3D_Recon_Clean"].columns.tolist())
-
     # ========================================================
     # EQUALIZATION
     # ========================================================
-
     colombia_equalized, barcelona_equalized = save_equalized_tables()
-
     print("\nColombia equalized:")
     print(colombia_equalized.shape)
-
     print("\nBarcelona equalized:")
     print(barcelona_equalized.shape)
-
     print("\nColumns are equal:")
     print(list(colombia_equalized.columns) == list(barcelona_equalized.columns))
-
     # ========================================================
     # CANONICAL DATA DICTIONARY
     # ========================================================
-
     canonical_dictionary = save_canonical_dictionary()
-
     print("\nCanonical dictionary saved:")
     print(canonical_dictionary.shape)
-
     # ========================================================
     # QUALITY CONTROL + MISSING VALUE IMPUTATION
     # ========================================================
-
     colombia_qc = add_quality_control_flags(colombia_equalized)
     barcelona_qc = add_quality_control_flags(barcelona_equalized)
-
     colombia_preprocessed = impute_missing_values(colombia_qc)
     barcelona_preprocessed = impute_missing_values(barcelona_qc)
-
     # ========================================================
     # PSEUDONYMIZATION
     # ========================================================
-
     colombia_preprocessed, colombia_mapping = pseudonymize_preprocessed_table(
         df=colombia_preprocessed,
         site_prefix="CO",
         site_name="Colombia",
     )
-
     barcelona_preprocessed, barcelona_mapping = pseudonymize_preprocessed_table(
         df=barcelona_preprocessed,
         site_prefix="ES",
         site_name="Barcelona",
     )
-
     pseudo_id_mapping = pd.concat(
         [colombia_mapping, barcelona_mapping],
         ignore_index=True,
     )
-
     PSEUDO_ID_MAPPING_PRIVATE_TABLE.parent.mkdir(parents=True, exist_ok=True)
     pseudo_id_mapping.to_csv(PSEUDO_ID_MAPPING_PRIVATE_TABLE, index=False)
-
     colombia_preprocessed.to_csv(COLOMBIA_PREPROCESSED_TABLE, index=False)
     barcelona_preprocessed.to_csv(BARCELONA_PREPROCESSED_TABLE, index=False)
-
     print("\nPseudonymized preprocessed tables saved:")
     print(f"  - {COLOMBIA_PREPROCESSED_TABLE}")
     print(f"  - {BARCELONA_PREPROCESSED_TABLE}")
-
     print("\nPrivate pseudo-ID mapping saved:")
     print(f"  - {PSEUDO_ID_MAPPING_PRIVATE_TABLE}")
     print(pseudo_id_mapping.shape)
-
     # ========================================================
     # QUALITY REPORTS
     # ========================================================
-
     quality_report = combine_quality_reports(
         colombia_qc=colombia_preprocessed,
         barcelona_qc=barcelona_preprocessed,
     )
-
     QUALITY_REPORT_TABLE.parent.mkdir(parents=True, exist_ok=True)
     quality_report.to_csv(QUALITY_REPORT_TABLE, index=False)
-
     print("\nQuality report saved:")
     print(f"  - {QUALITY_REPORT_TABLE}")
     print(quality_report.shape)
-
     flagged_values_report = combine_flagged_values_reports(
         colombia_qc=colombia_preprocessed,
         barcelona_qc=barcelona_preprocessed,
     )
-
     FLAGGED_VALUES_REPORT_TABLE.parent.mkdir(parents=True, exist_ok=True)
     flagged_values_report.to_csv(FLAGGED_VALUES_REPORT_TABLE, index=False)
-
     print("\nFlagged values report saved:")
     print(f"  - {FLAGGED_VALUES_REPORT_TABLE}")
     print(flagged_values_report.shape)
-
     print("\nColombia QC flag counts:")
     print(colombia_preprocessed["QC_FLAGS"].value_counts(dropna=False))
-
     print("\nBarcelona QC flag counts:")
     print(barcelona_preprocessed["QC_FLAGS"].value_counts(dropna=False))
-
     print("\nColombia imputed values:")
     print(colombia_preprocessed["N_IMPUTED_VALUES"].sum())
-
     print("\nBarcelona imputed values:")
     print(barcelona_preprocessed["N_IMPUTED_VALUES"].sum())
-
     # ========================================================
     # IMAGE CALIBRATION
     # ========================================================
-
     # This step estimates the cm/pixel scale for each Colombia image.
     # It also saves verification images so we can visually check whether
     # the ArUco markers were detected correctly.
@@ -228,25 +166,19 @@ def main():
         assets_by_subject=assets_by_subject,
         save_debug=True,
     )
-
     print("\nImage calibration table saved:")
     print(f"  - {IMAGE_CALIBRATION_TABLE}")
     print(calibration_df.shape)
-
     print("\nCalibration references table saved:")
     print(f"  - {CALIBRATION_REFERENCES_TABLE}")
     print(calibration_references_df.shape)
-
     print("\nCalibration status counts:")
     print(calibration_df["calibration_status"].value_counts(dropna=False))
-
     print("\nNumber of detected references per image:")
     print(calibration_df["n_references_detected"].value_counts(dropna=False).sort_index())
-
     # ========================================================
     # EXPERIMENT 1: AUTOMATIC HEIGHT ESTIMATION
     # ========================================================
-
     # This first experiment tests whether the ArUco-derived scales can provide
     # a preliminary height estimate when head and feet points are extracted
     # automatically from the body silhouette.
@@ -267,17 +199,13 @@ def main():
         max_images=None,
         save_debug=True,
     )
-
     height_exp1_summary = summarize_height_experiment_1(height_exp1_df)
-
     print("\nExperiment 1 automatic height estimates saved:")
     print(f"  - {VERIFICATION_DIR / 'height_estimates_experiment1.csv'}")
     print(height_exp1_df.shape)
-
     print("\nExperiment 1 summary saved:")
     print(f"  - {VERIFICATION_DIR / 'height_estimates_experiment1_summary.csv'}")
     print(height_exp1_summary)
-
     if not height_exp1_df.empty:
         print("\nExperiment 1 mean absolute errors:")
         print(
@@ -289,16 +217,12 @@ def main():
                 ]
             ].abs().mean()
         )
-
     print("\nSweep del offset de corona:")
     sweep_crown_offset_factor(height_exp1_df, scale_column="scale_closest_feet")
     sweep_crown_offset_factor(height_exp1_df, scale_column="scale_best_quality")
-
     df = pd.read_csv(VERIFICATION_DIR / "height_estimates_experiment1.csv")
-
     plot_view_results(df, view="back", method="ground_line_scale",
                       save_path=VERIFICATION_DIR / "back_ground_line.png")
-
     # aplica la correccion calibrada por vista (leave-one-out) y re-guarda el CSV
     height_exp1_df = apply_calibrated_correction(
         height_exp1_df, method="ground_line_scale", by="view"
@@ -306,73 +230,20 @@ def main():
     height_exp1_df.to_csv(
         VERIFICATION_DIR / "height_estimates_experiment1.csv", index=False
     )
-
     # tabla antes/despues
     print("\nCorreccion calibrada (antes/despues):")
     print(compare_correction(height_exp1_df, method="ground_line_scale").round(1).to_string(index=False))
-
-    # ========================================================
-    # EXPERIMENT 2: CRIMINISI (metrologia de vista unica)
-    # ========================================================
-    criminisi_df = run_criminisi_experiment(
-        assets_by_subject=assets_by_subject,
-        manual_heights_df=colombia_equalized,
-        max_images=10,  # empieza con 10 para revisar las imagenes
-        save_debug=True,
-    )
-    print("\nCriminisi estimates guardados:")
-    print(f"  - {VERIFICATION_DIR / 'criminisi' / 'criminisi_estimates.csv'}")
-    print(criminisi_df["status"].value_counts())
-
     # ========================================================
     # EXPERIMENT 2: METODO DEL HORIZONTE (camara a 1 m)
     # ========================================================
-
     horizon_df = run_horizon_experiment(
         assets_by_subject=assets_by_subject,
         manual_heights_df=colombia_equalized,
         max_images=None,
         save_debug=True,
     )
-
     print("\nExperimento 2 (horizonte) guardado:")
     print(f"  - {VERIFICATION_DIR / 'horizon' / 'horizon_estimates.csv'}")
     print(horizon_df["status"].value_counts())
-
-    h = pd.read_csv("outputs/verification/horizon/horizon_estimates.csv")
-
-    print("=== altura en pixeles y posicion de pies/cabeza por vista ===")
-    for v, g in h.groupby("view"):
-        print(f"{v:6s}  height_px medio={g.height_px.mean():7.1f}  "
-              f"y_feet medio={g.y_feet.mean():7.1f}  y_head medio={g.y_head.mean():7.1f}")
-
-    print("\n=== misma persona: cuanto mide de mas en lateral que en frontal ===")
-    piv = h.pivot_table(index="subject_id", columns="view",
-                        values="H_horizon_shared", aggfunc="mean")
-    print("left  - front  medio:", (piv["left"] - piv["front"]).mean().round(1), "cm")
-    print("right - front  medio:", (piv["right"] - piv["front"]).mean().round(1), "cm")
-    print("left  - back   medio:", (piv["left"] - piv["back"]).mean().round(1), "cm")
-    print("right - back   medio:", (piv["right"] - piv["back"]).mean().round(1), "cm")
-
-    print("\n=== descomposicion del +20: viene de la cabeza o de los pies? ===")
-    # comparamos, para cada sujeto, y_head e y_feet entre lateral y frontal
-    for col in ["y_head", "y_feet", "height_px"]:
-        p = h.pivot_table(index="subject_id", columns="view", values=col, aggfunc="mean")
-        dl = (p["left"] - p["front"]).mean()
-        dr = (p["right"] - p["front"]).mean()
-        print(f"{col:10s}  left-front={dl:+7.1f} px   right-front={dr:+7.1f} px")
-    lat = h[h.view.isin(["left", "right"])]
-    print("laterales: head_source usado ->", lat.head_source.value_counts().to_dict())
-    print("y_head medio en laterales (actual, desde ojos):", lat.y_head.mean().round(1))
-    h = h.dropna(subset=["y_feet", "y_head", "height_manual_cm"])
-    HC = 100.0
-
-    # horizonte "ideal" = el que haria la estimacion EXACTA en cada foto
-    h["y_horizon_ideal"] = h.y_feet - HC * (h.y_feet - h.y_head) / h.height_manual_cm
-
-    print("=== horizonte IDEAL por vista (el que daria altura correcta) ===")
-    print(h.groupby("view")["y_horizon_ideal"].agg(["mean", "std", "min", "max"]).round(1))
-    print("\nrecordatorio: el compartido global que uso ahora es y≈983")
-
 if __name__ == "__main__":
     main()

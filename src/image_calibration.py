@@ -45,6 +45,8 @@ from src.config import (
     IMAGE_CALIBRATION_TABLE,
     CALIBRATION_REFERENCES_TABLE,
     VERIFICATION_DIR,
+    EXPERIMENT_BASE_DIR,
+    CUBE_DETECTION_DIR,
 )
 
 # Segmentador de persona. Si defines estos nombres en src/config.py se respetan.
@@ -248,7 +250,20 @@ def calibrate_with_aruco(image, asset, debug_image=None):
 
         if debug_image is not None:
             points_int = points.astype(int)
+            # todas las aristas del marcador en verde
             cv2.polylines(debug_image, [points_int], True, (0, 255, 0), 3)
+            # resaltar la arista mas vertical: es la referencia de 10 cm del horizonte
+            edges = [(points[0], points[1]), (points[1], points[2]),
+                     (points[2], points[3]), (points[3], points[0])]
+            def _verticality(edge):
+                (x1, y1), (x2, y2) = edge
+                angle = abs(np.degrees(np.arctan2(y2 - y1, x2 - x1))) % 180.0
+                return abs(angle - 90.0)  # 0 = perfectamente vertical
+            vertical_edge = min(edges, key=_verticality)
+            vp1 = tuple(np.int32(vertical_edge[0]))
+            vp2 = tuple(np.int32(vertical_edge[1]))
+            cv2.line(debug_image, vp1, vp2, (255, 0, 255), 4, cv2.LINE_AA)
+            put_label(debug_image, "arista 10cm", (vp1[0] + 6, vp1[1]), color=(255, 0, 255))
             cv2.circle(debug_image, (int(center_x), int(center_y)), 4, (0, 0, 255), -1)
             put_label(
                 debug_image,
@@ -399,9 +414,9 @@ def calibrate_image_asset(asset, save_debug: bool = True):
     result.update(calibration_result)
 
     if save_debug and debug_image is not None:
-        VERIFICATION_DIR.mkdir(parents=True, exist_ok=True)
-        verification_path = VERIFICATION_DIR / build_verification_filename(
-            asset=asset, image_path=image_path, step="calibration",
+        CUBE_DETECTION_DIR.mkdir(parents=True, exist_ok=True)
+        verification_path = CUBE_DETECTION_DIR / build_verification_filename(
+            asset=asset, image_path=image_path, step="cube_detection",
         )
 
         scale_text = ("scale=NA" if np.isnan(result["scale_cm_per_pixel"])
@@ -1318,8 +1333,8 @@ def run_height_experiment_1_auto(assets_by_subject: dict, calibration_df: pd.Dat
             result = add_height_errors(result)
 
             verification_path = (
-                VERIFICATION_DIR
-                / f"{asset.subject_id}_{asset.view}_{image_path.stem}_height_experiment1.png"
+                EXPERIMENT_BASE_DIR
+                / f"{asset.subject_id}_{asset.view}_{image_path.stem}_experiment_base.png"
             )
 
             if save_debug:

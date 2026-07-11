@@ -121,6 +121,20 @@ VERIFICATION_DIR = OUTPUT_DIR / "verification"
 CALIBRATION_REFERENCES_TABLE = VERIFICATION_DIR / "calibration_references.csv"
 VERIFICATION_SUMMARY_TABLE = VERIFICATION_DIR / "verification_summary.csv"
 
+# Subcarpetas de verificacion (una por bloque, para tener las imagenes ordenadas).
+# - experiment_base: imagenes anotadas del Experimento 1 (persona, cabeza-pies, cubos).
+# - horizon:         imagenes anotadas del metodo del horizonte (Experimento 2).
+# - cube_detection:  SOLO los cubos con sus aristas marcadas (sin cabeza ni pies).
+EXPERIMENT_BASE_DIR = VERIFICATION_DIR / "experiment_base"
+HORIZON_DIR = VERIFICATION_DIR / "horizon"
+CUBE_DETECTION_DIR = VERIFICATION_DIR / "cube_detection"
+
+# Carpeta de la comparativa final (a nivel de outputs/):
+# el CSV que junta los metodos y una carpeta de imagenes por sujeto/perspectiva.
+COMPARATIVA_DIR = OUTPUT_DIR / "comparativa_final"
+COMPARATIVA_CSV = COMPARATIVA_DIR / "comparativa_final.csv"
+COMPARATIVA_MAE_CSV = COMPARATIVA_DIR / "comparativa_metodos_mae.csv"
+
 
 # ============================================================
 # PSEUDONYMIZATION SETTINGS
@@ -149,6 +163,10 @@ CUBE_EDGE_CM = None
 # two cubes with 10 cm x 10 cm ArUco markers.
 # This value is used to convert ArUco side length from pixels to centimeters.
 ARUCO_MARKER_SIZE_CM = 10.0
+
+# Altura de la camara respecto al suelo (cm). La camara estuvo nivelada y fija a
+# 1 m para todas las fotos de Colombia. Se usa en el metodo del horizonte.
+CAMERA_HEIGHT_CM = 100.0
 
 # Physical diameter of the circular anatomical markers used in Barcelona.
 # 14 mm = 1.4 cm.
@@ -212,3 +230,7 @@ def create_output_folders():
     TABLES_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     PRIVATE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     VERIFICATION_DIR.mkdir(parents=True, exist_ok=True)
+    EXPERIMENT_BASE_DIR.mkdir(parents=True, exist_ok=True)
+    HORIZON_DIR.mkdir(parents=True, exist_ok=True)
+    CUBE_DETECTION_DIR.mkdir(parents=True, exist_ok=True)
+    COMPARATIVA_DIR.mkdir(parents=True, exist_ok=True)

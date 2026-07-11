@@ -1,25 +1,31 @@
 """
 comparativa_final.py
 
-Genera un CSV unico por imagen que junta el Experimento 1 (escalas) y el
-Experimento 2 (metodo del horizonte), con la escala pixel->cm de cada metodo
-(la del horizonte es EQUIVALENTE: altura_estimada / altura_px) y todos los
-errores, para poder comparar metodos lado a lado.
+Genera un CSV unico por imagen que junta el Experimento base (escalas) y el
+Experimento del horizonte, con la escala pixel->cm de cada metodo (la del
+horizonte es EQUIVALENTE: altura_estimada / altura_px) y todos los errores,
+para comparar metodos lado a lado.
 
-Salida: outputs/verification/comparativa_final.csv
+Salida: outputs/comparativa_final/comparativa_final.csv
+        outputs/comparativa_final/comparativa_metodos_mae.csv
 Ademas imprime una tabla resumen de MAE por vista y metodo.
 
-Uso (archivo aparte, no en el main):
+Uso (archivo aparte, DESPUES de correr el main):
     python comparativa_final.py
 """
 import pandas as pd
 import numpy as np
-from pathlib import Path
 
-V = Path("outputs/verification")
-E1 = V / "height_estimates_experiment1.csv"
-HZ = V / "horizon" / "horizon_estimates.csv"
-OUT = V / "comparativa_final.csv"
+from src.config import (
+    VERIFICATION_DIR,
+    HORIZON_DIR,
+    COMPARATIVA_DIR,
+    COMPARATIVA_CSV,
+    COMPARATIVA_MAE_CSV,
+)
+
+E1 = VERIFICATION_DIR / "height_estimates_experiment1.csv"
+HZ = HORIZON_DIR / "horizon_estimates.csv"
 
 
 def col(df, name):
@@ -31,7 +37,7 @@ def main():
     e1 = pd.read_csv(E1)
     hz = pd.read_csv(HZ)
 
-    # ---------- lado EXPERIMENTO 1 ----------
+    # ---------- lado EXPERIMENTO BASE (Exp 1) ----------
     e1f = pd.DataFrame()
     e1f["image_path"] = e1["image_path"]
     e1f["site"] = col(e1, "site")
@@ -39,7 +45,7 @@ def main():
     e1f["view"] = col(e1, "view")
     e1f["height_manual_cm"] = col(e1, "height_manual_cm")
     e1f["e1_height_px"] = col(e1, "height_px")
-    # escala linea de suelo (la mejor del Exp 1)
+    # escala linea de suelo (la mejor del Exp base)
     e1f["e1_scale_groundline_cmpx"] = col(e1, "scale_ground_line")
     e1f["e1_H_groundline"] = col(e1, "height_cm_ground_line_scale")
     e1f["e1_err_groundline"] = col(e1, "error_cm_ground_line_scale")
@@ -78,21 +84,21 @@ def main():
     # ---------- merge por imagen ----------
     final = e1f.merge(hzf, on="image_path", how="outer")
 
-    # orden de columnas
     id_cols = ["site", "subject_id", "view", "image_path", "height_manual_cm"]
     other = [c for c in final.columns if c not in id_cols]
     final = final[id_cols + other]
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    final.to_csv(OUT, index=False)
-    print(f"CSV final por imagen guardado en: {OUT}   ({len(final)} filas)")
+
+    COMPARATIVA_DIR.mkdir(parents=True, exist_ok=True)
+    final.to_csv(COMPARATIVA_CSV, index=False)
+    print(f"CSV final por imagen guardado en: {COMPARATIVA_CSV}   ({len(final)} filas)")
 
     # ---------- resumen: MAE por vista y metodo ----------
     methods = {
-        "E1 escala suelo":        "e1_err_groundline",
-        "E1 escala mejor cara":   "e1_err_bestquality",
-        "E1 suelo corregida*":    "e1_err_groundline_corr",
-        "HZ via cubo":            "hz_err_cube",
-        "HZ compartido":          "hz_err_shared",
+        "E1 escala suelo":         "e1_err_groundline",
+        "E1 escala mejor cara":    "e1_err_bestquality",
+        "E1 suelo corregida*":     "e1_err_groundline_corr",
+        "HZ via cubo":             "hz_err_cube",
+        "HZ compartido":           "hz_err_shared",
         "HZ compartido pie single":"hz_err_feet_single",
         "HZ compartido pie mask":  "hz_err_feet_mask",
     }
@@ -119,7 +125,7 @@ def main():
     print(tabla.to_string())
     print("\n(* la corregida APRENDE de las alturas reales con leave-one-out;")
     print("   las demas no usan las alturas reales)")
-    tabla.to_csv(V / "comparativa_metodos_mae.csv")
+    tabla.to_csv(COMPARATIVA_MAE_CSV)
 
     print("\n=== mejor metodo por columna ===")
     for c in tabla.columns:
