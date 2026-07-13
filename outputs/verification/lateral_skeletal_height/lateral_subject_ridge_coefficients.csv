@@ -1,0 +1,6 @@
+model,feature,alpha,coefficient_standardised,coefficient_original_units,intercept_original_units
+ridge_subject_fusion,initial_height_mean_cm,1.0,9.702878531307611,0.41323225618133286,-62.719721019551315
+ridge_subject_fusion,initial_height_lr_diff_cm,1.0,-5.502445506443252,-0.29462901056029567,-62.719721019551315
+ridge_subject_fusion,shoulder_hip_ratio_mean,1.0,-1.0821744315681696,-124.2095081536398,-62.719721019551315
+ridge_subject_fusion,hip_knee_ratio_mean,1.0,6.280659416936078,794.865852384044,-62.719721019551315
+ridge_subject_fusion,knee_ankle_ratio_mean,1.0,0.11437224705023404,13.726084686384668,-62.719721019551315

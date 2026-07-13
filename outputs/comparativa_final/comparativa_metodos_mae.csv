@@ -1,8 +1,11 @@
-metodo,front,back,left,right,FRONT+BACK,GLOBAL
-E1 escala suelo,14.9,8.0,18.9,19.9,11.5,15.4
-E1 escala mejor cara,15.2,13.1,18.0,18.0,14.1,16.1
-E1 suelo corregida*,4.3,3.2,10.7,10.5,3.8,7.2
-HZ via cubo,5.8,2.5,26.4,33.0,4.2,16.9
-HZ compartido,2.1,2.5,37.8,37.8,2.3,20.1
-HZ compartido pie single,2.1,2.5,38.8,38.2,2.3,20.4
-HZ compartido pie mask,2.9,2.6,37.8,37.8,2.7,20.3
+metodo,front,back,left,right,FRONT+BACK,LEFT+RIGHT,GLOBAL
+E1 mediana escalas,28.7382,38.1628,19.2826,19.2546,33.4505,19.2686,26.3595
+E1 escala mejor calidad,15.1687,13.1125,17.9583,18.0323,14.1406,17.9953,16.0679
+E1 escala cercana a pies,29.5637,14.4426,23.0008,16.3171,22.0031,19.6589,20.831
+E1 escala suelo,14.9038,8.0077,18.8507,19.9417,11.4558,19.3962,15.426
+E1 suelo corregida LOO*,4.3498,3.193,10.7266,10.5006,3.7714,10.6136,7.1925
+HZ vía cubo,5.8314,2.4768,26.4262,32.9541,4.1541,29.6901,16.9221
+HZ compartido,2.1396,2.4648,37.8244,37.8169,2.3022,37.8207,20.0614
+HZ compartido pie single,2.1396,2.4648,38.816,38.2322,2.3022,38.5241,20.4132
+HZ compartido pie mask,2.8606,2.5935,37.8244,37.8169,2.7271,37.8207,20.2739
+HZ corregido final LOO,2.1396,2.4648,6.4824,6.8991,2.3022,6.6907,4.4965

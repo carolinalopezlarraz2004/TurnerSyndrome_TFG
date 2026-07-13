@@ -1,0 +1,2 @@
+model,feature,coefficient,intercept
+calibrated_segment_sum,segment_sum_cm,0.4049076860181546,90.05229082676564

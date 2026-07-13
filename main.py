@@ -36,6 +36,19 @@ from src.image_calibration import (
 )
 from src.image_calibration import (sweep_crown_offset_factor, plot_view_results, apply_calibrated_correction, compare_correction,)
 from src.horizon_method import run_horizon_experiment
+
+from src.lateral_skeletal_height import (
+    run_lateral_skeletal_experiment,
+)
+
+from src.lateral_horizon_diagnostic import (
+    run_lateral_horizon_diagnostic,
+)
+
+from src.horizon_corrected import (
+    run_corrected_horizon_experiment,
+)
+
 def read_files(site: str):
     """
     Read and organize image files from one dataset.
@@ -234,16 +247,168 @@ def main():
     print("\nCorreccion calibrada (antes/despues):")
     print(compare_correction(height_exp1_df, method="ground_line_scale").round(1).to_string(index=False))
     # ========================================================
-    # EXPERIMENT 2: METODO DEL HORIZONTE (camara a 1 m)
+    # EXPERIMENT 2: MÉTODO DEL HORIZONTE
+    # Cámara situada a 1 metro de altura
     # ========================================================
+
     horizon_df = run_horizon_experiment(
         assets_by_subject=assets_by_subject,
         manual_heights_df=colombia_equalized,
         max_images=None,
         save_debug=True,
     )
-    print("\nExperimento 2 (horizonte) guardado:")
-    print(f"  - {VERIFICATION_DIR / 'horizon' / 'horizon_estimates.csv'}")
-    print(horizon_df["status"].value_counts())
+
+    print(
+        "\nExperimento 2 "
+        "(método del horizonte) guardado:"
+    )
+
+    print(
+        " - "
+        + str(
+            VERIFICATION_DIR
+            / "horizon"
+            / "horizon_estimates.csv"
+        )
+    )
+
+    print(
+        "\nEstados del Experimento 2:"
+    )
+
+    print(
+        horizon_df[
+            "status"
+        ].value_counts(
+            dropna=False
+        )
+    )
+
+    # ========================================================
+    # EXPERIMENT 2B: DIAGNÓSTICO DEL HORIZONTE LATERAL
+    # ========================================================
+
+    # Este análisis utiliza los resultados ya generados por el
+    # Experimento 2 y compara dos alternativas en left/right:
+    #
+    #   1. horizonte propio calculado a partir del cubo de cada imagen;
+    #   2. horizonte compartido o transferido desde otra vista.
+    #
+    # De esta manera podemos comprobar si el elevado error lateral
+    # está provocado por una estimación incorrecta del horizonte.
+
+    (
+        lateral_horizon_predictions_df,
+        lateral_horizon_summary_df,
+    ) = run_lateral_horizon_diagnostic(
+        horizon_estimates=horizon_df,
+        camera_height_cm=100.0,
+    )
+
+    print(
+        "\nDiagnóstico del horizonte lateral guardado:"
+    )
+
+    print(
+        " - "
+        + str(
+            VERIFICATION_DIR
+            / "lateral_horizon_diagnostic"
+            / "lateral_horizon_image_predictions.csv"
+        )
+    )
+
+    print(
+        "\nResumen del diagnóstico del horizonte lateral:"
+    )
+
+    print(
+        lateral_horizon_summary_df.round(
+            2
+        ).to_string(
+            index=False
+        )
+    )
+
+    # ========================================================
+    # EXPERIMENT 2 CORRECTED: HORIZONTE SEGÚN LA VISTA
+    # ========================================================
+
+    corrected_horizon_df = (
+        run_corrected_horizon_experiment(
+            assets_by_subject=assets_by_subject,
+            manual_heights_df=colombia_equalized,
+            max_images=None,
+            save_debug=True,
+        )
+    )
+
+    print(
+        "\nExperimento 2 corregido guardado:"
+    )
+
+    print(
+        " - "
+        + str(
+            VERIFICATION_DIR
+            / "horizon"
+            / "corrected"
+            / "corrected_horizon_estimates.csv"
+        )
+    )
+
+    # ========================================================
+    # EXPERIMENT 3: ALTURA LATERAL MEDIANTE FEATURES
+    # ESQUELÉTICAS Y FUSIÓN LEFT/RIGHT
+    # ========================================================
+
+    # Este experimento utiliza las vistas left y right para extraer:
+    #
+    #   - una estimación métrica inicial;
+    #   - proporciones hombro-cadera;
+    #   - proporciones cadera-rodilla;
+    #   - proporciones rodilla-tobillo.
+    #
+    # Después fusiona ambas vistas en una única fila por sujeto
+    # y compara una calibración lineal con una regresión Ridge.
+
+    (
+        lateral_predictions_df,
+        lateral_summary_df,
+    ) = run_lateral_skeletal_experiment(
+        assets_by_subject=assets_by_subject,
+        manual_heights_df=colombia_equalized,
+        calibration_df=calibration_df,
+        references_df=calibration_references_df,
+        max_images=None,
+    )
+
+    print(
+        "\nExperimento 3 "
+        "(estimación lateral esquelética) guardado:"
+    )
+
+    print(
+        " - "
+        + str(
+            VERIFICATION_DIR
+            / "lateral_skeletal_height"
+            / "lateral_subject_predictions.csv"
+        )
+    )
+
+    print(
+        "\nResumen del Experimento 3:"
+    )
+
+    print(
+        lateral_summary_df.round(
+            2
+        ).to_string(
+            index=False
+        )
+    )
+
+
 if __name__ == "__main__":
     main()

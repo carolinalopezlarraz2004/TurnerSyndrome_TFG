@@ -297,11 +297,135 @@ def run_horizon_experiment(assets_by_subject, manual_heights_df,
         per_subject[sid] = float(np.median(vals)) if vals else global_ref
 
     # -------- PASADA 2: horizonte compartido + variantes de pie + dibujo --------
+    # -------- PASADA 2: horizonte compartido + variantes de pie + dibujo --------
     for r in records:
         yref = per_subject.get(r["subject_id"], global_ref)
+
         r["y_horizon_ref"] = yref
-        r["horizon_ref_source"] = "subject" if any(
-            rr["subject_id"] == r["subject_id"] and valid_h(rr) for rr in records) else "global"
+
+        has_subject_reference = any(
+            rr["subject_id"] == r["subject_id"] and valid_h(rr)
+            for rr in records
+        )
+
+        r["horizon_ref_source"] = (
+            "subject"
+            if has_subject_reference
+            else "global"
+        )
+
+        # --------------------------------------------------------
+        # Diagnóstico de alineación del horizonte
+        # --------------------------------------------------------
+        # Compara el horizonte obtenido mediante el cubo de esta
+        # imagen con el horizonte compartido front/back.
+        y_cube = r.get("y_horizon_cube", np.nan)
+        img_h = r.get("img_h", np.nan)
+
+        if np.isfinite(y_cube) and np.isfinite(yref):
+            r["delta_horizon_px"] = float(y_cube - yref)
+        else:
+            r["delta_horizon_px"] = np.nan
+
+        # Diferencia normalizada por la altura de la imagen.
+        if (
+                np.isfinite(y_cube)
+                and np.isfinite(yref)
+                and np.isfinite(img_h)
+                and img_h > 0
+        ):
+            r["delta_horizon_frac"] = float(
+                (y_cube - yref) / img_h
+            )
+        else:
+            r["delta_horizon_frac"] = np.nan
+
+        yf = r["y_feet"]
+        yhd = r["y_head"]
+        man = r["height_manual_cm"]
+
+        # Estimación por defecto usando el pie seleccionado.
+        if (
+                np.isfinite(yf)
+                and np.isfinite(yhd)
+                and np.isfinite(yref)
+        ):
+            r["H_horizon_shared"] = height_from_horizon(
+                CAMERA_HEIGHT_CM,
+                yf,
+                yhd,
+                yref,
+            )
+        else:
+            r["H_horizon_shared"] = np.nan
+
+        r["error_horizon_shared"] = (
+            r["H_horizon_shared"] - man
+            if (
+                    np.isfinite(r["H_horizon_shared"])
+                    and np.isfinite(man)
+            )
+            else np.nan
+        )
+
+        r["error_horizon_cube"] = (
+            r["H_horizon_cube"] - man
+            if (
+                    np.isfinite(r["H_horizon_cube"])
+                    and np.isfinite(man)
+            )
+            else np.nan
+        )
+
+        # Variantes de pie con el mismo horizonte compartido
+        # y la misma cabeza.
+        for tag in ["single", "mask"]:
+            yfv = r.get(f"y_feet_{tag}", np.nan)
+
+            valid_variant = (
+                    np.isfinite(yfv)
+                    and np.isfinite(yhd)
+                    and np.isfinite(yref)
+            )
+
+            if valid_variant:
+                Hv = height_from_horizon(
+                    CAMERA_HEIGHT_CM,
+                    yfv,
+                    yhd,
+                    yref,
+                )
+            else:
+                Hv = np.nan
+
+            r[f"H_shared_feet_{tag}"] = Hv
+
+            r[f"error_feet_{tag}"] = (
+                Hv - man
+                if np.isfinite(Hv) and np.isfinite(man)
+                else np.nan
+            )
+
+        if save_debug:
+            image = cv2.imread(str(r["image_path"]))
+
+            if image is not None:
+                out = (
+                        HORIZON_DIR
+                        / (
+                            f"{r['subject_id']}_{r['view']}_"
+                            f"{Path(r['image_path']).stem}_horizon.png"
+                        )
+                )
+
+                draw_horizon(
+                    image,
+                    r,
+                    out_path=out,
+                )
+
+                r["verification_image_path"] = str(out)
+
         yf, yhd = r["y_feet"], r["y_head"]
         man = r["height_manual_cm"]
 
@@ -326,50 +450,427 @@ def run_horizon_experiment(assets_by_subject, manual_heights_df,
                 draw_horizon(image, r, out_path=out)
                 r["verification_image_path"] = str(out)
 
-    drop = {"feet", "head", "cube_base", "cube_top"}
-    df = pd.DataFrame([{k: v for k, v in r.items() if k not in drop} for r in records])
-    HORIZON_DIR.mkdir(parents=True, exist_ok=True)
-    df.to_csv(HORIZON_DIR / "horizon_estimates.csv", index=False)
+    # ============================================================
+    # CREACIÓN Y GUARDADO DEL DATAFRAME PRINCIPAL
+    # ============================================================
 
-    # -------- informes --------
-    def stats(e):
-        e = e.dropna(); e = e[np.isfinite(e)]
-        return (len(e), e.mean(), e.abs().mean(), np.sqrt((e ** 2).mean())) if len(e) else (0, 0, 0, 0)
+    drop = {
+        "feet",
+        "head",
+        "cube_base",
+        "cube_top",
+    }
 
-    print(f"Experimento 2 (horizonte, h_cam={CAMERA_HEIGHT_CM:.0f} cm)")
-    print("estados:"); print(df["status"].value_counts().to_string())
-    print(f"correcciones -> pies desde mascara: {(df['feet_source']=='mask_bottom').sum()} | "
-          f"cabeza desde mascara: {(df['head_source']=='mask_trim_hair').sum()}")
-    print(f"horizonte de referencia global (mediana front+back): y = {global_ref:.1f}")
+    df = pd.DataFrame(
+        [
+            {
+                k: v
+                for k, v in r.items()
+                if k not in drop
+            }
+            for r in records
+        ]
+    )
 
-    print("\nMAE por vista  ->  horizonte via CUBO  vs  horizonte COMPARTIDO (pie por defecto):")
-    for v, g in df.groupby("view"):
-        _, bc, mc, _ = stats(g["error_horizon_cube"])
-        _, bs, ms, _ = stats(g["error_horizon_shared"])
-        print(f"  {v:6s}  cubo MAE={mc:5.1f} (bias{bc:+5.1f})   compartido MAE={ms:5.1f} (bias{bs:+5.1f})")
+    HORIZON_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    print("\n=== COMPARACION DE PIE (MAE / bias por vista, horizonte compartido) ===")
-    print(f"{'vista':6s}  {'single MAE':>10s} {'single bias':>11s}  {'mask MAE':>9s} {'mask bias':>9s}")
-    for v, g in df.groupby("view"):
-        _, bs1, ms1, _ = stats(g["error_feet_single"])
-        _, bs2, ms2, _ = stats(g["error_feet_mask"])
-        print(f"{v:6s}  {ms1:10.1f} {bs1:+11.1f}  {ms2:9.1f} {bs2:+9.1f}")
-    _, b1, m1, _ = stats(df["error_feet_single"])
-    _, b2, m2, _ = stats(df["error_feet_mask"])
-    print(f"{'GLOBAL':6s}  {m1:10.1f} {b1:+11.1f}  {m2:9.1f} {b2:+9.1f}")
+    df.to_csv(
+        HORIZON_DIR / "horizon_estimates.csv",
+        index=False,
+    )
 
-    fb = df[df["view"].isin(RELIABLE_VIEWS)]
-    _, bfb, mfb, rfb = stats(fb["error_horizon_shared"])
-    print(f"\n>> FRONT+BACK (pie por defecto): n={len(fb.dropna(subset=['error_horizon_shared']))}  "
-          f"bias={bfb:+.1f}  MAE={mfb:.1f}  RMSE={rfb:.1f}")
+    # ============================================================
+    # DIAGNÓSTICO DE ALINEACIÓN DEL HORIZONTE
+    # ============================================================
 
-    summ = []
-    for v, g in df.groupby("view"):
-        ns, bs, ms, rs = stats(g["error_horizon_shared"])
-        summ.append({"grupo": v, "n": ns, "bias_cm": round(bs, 1), "mae_cm": round(ms, 1), "rmse_cm": round(rs, 1)})
-    ns, bs, ms, rs = stats(fb["error_horizon_shared"])
-    summ.append({"grupo": "FRONT+BACK", "n": ns, "bias_cm": round(bs, 1), "mae_cm": round(ms, 1), "rmse_cm": round(rs, 1)})
-    ns, bs, ms, rs = stats(df["error_horizon_shared"])
-    summ.append({"grupo": "GLOBAL", "n": ns, "bias_cm": round(bs, 1), "mae_cm": round(ms, 1), "rmse_cm": round(rs, 1)})
-    pd.DataFrame(summ).to_csv(HORIZON_DIR / "horizon_summary.csv", index=False)
+    if "delta_horizon_px" in df.columns:
+        valid_delta = df[
+            np.isfinite(df["delta_horizon_px"])
+        ].copy()
+    else:
+        valid_delta = pd.DataFrame()
+
+    # ------------------------------------------------------------
+    # Resumen por vista
+    # ------------------------------------------------------------
+
+    if not valid_delta.empty:
+        horizon_alignment_summary = (
+            valid_delta
+            .groupby("view")["delta_horizon_px"]
+            .agg(
+                n="count",
+                mean_px="mean",
+                median_px="median",
+                std_px="std",
+                min_px="min",
+                max_px="max",
+            )
+            .reset_index()
+        )
+
+        horizon_alignment_summary.to_csv(
+            HORIZON_DIR / "horizon_alignment_by_view.csv",
+            index=False,
+        )
+
+    else:
+        horizon_alignment_summary = pd.DataFrame(
+            columns=[
+                "view",
+                "n",
+                "mean_px",
+                "median_px",
+                "std_px",
+                "min_px",
+                "max_px",
+            ]
+        )
+
+        horizon_alignment_summary.to_csv(
+            HORIZON_DIR / "horizon_alignment_by_view.csv",
+            index=False,
+        )
+
+    print("\n=== DESALINEACION DEL HORIZONTE POR VISTA ===")
+
+    if horizon_alignment_summary.empty:
+        print(
+            "No hay datos validos para analizar "
+            "la alineacion del horizonte."
+        )
+    else:
+        print(
+            horizon_alignment_summary.to_string(
+                index=False,
+                float_format=lambda x: f"{x:.2f}",
+            )
+        )
+
+    # ------------------------------------------------------------
+    # Tabla detallada: una fila por imagen
+    # ------------------------------------------------------------
+
+    alignment_columns = [
+        "site",
+        "subject_id",
+        "view",
+        "image_path",
+        "status",
+        "img_h",
+        "y_horizon_cube",
+        "y_horizon_ref",
+        "horizon_ref_source",
+        "delta_horizon_px",
+        "delta_horizon_frac",
+        "y_feet",
+        "y_head",
+        "height_px",
+        "feet_source",
+        "head_source",
+        "H_horizon_cube",
+        "H_horizon_shared",
+        "height_manual_cm",
+        "error_horizon_cube",
+        "error_horizon_shared",
+    ]
+
+    available_alignment_columns = [
+        column
+        for column in alignment_columns
+        if column in df.columns
+    ]
+
+    horizon_alignment_subject = df[
+        available_alignment_columns
+    ].copy()
+
+    if {
+        "subject_id",
+        "view",
+    }.issubset(horizon_alignment_subject.columns):
+        horizon_alignment_subject = (
+            horizon_alignment_subject
+            .sort_values(
+                ["subject_id", "view"]
+            )
+        )
+
+    horizon_alignment_subject.to_csv(
+        HORIZON_DIR / "horizon_alignment_by_subject.csv",
+        index=False,
+    )
+
+    # ------------------------------------------------------------
+    # Tabla pivotada: una fila por sujeto y una columna por vista
+    # ------------------------------------------------------------
+
+    if (
+            "delta_horizon_px" in df.columns
+            and "subject_id" in df.columns
+            and "view" in df.columns
+    ):
+        delta_pivot = df.pivot_table(
+            index="subject_id",
+            columns="view",
+            values="delta_horizon_px",
+            aggfunc="median",
+        ).reset_index()
+
+        # Quita el nombre interno del eje de columnas para que
+        # el CSV tenga una cabecera más limpia.
+        delta_pivot.columns.name = None
+
+    else:
+        delta_pivot = pd.DataFrame()
+
+    delta_pivot.to_csv(
+        HORIZON_DIR / "horizon_delta_pivot.csv",
+        index=False,
+    )
+
+    # ============================================================
+    # INFORMES DE RENDIMIENTO
+    # ============================================================
+
+    def stats(error_series):
+        error_series = error_series.dropna()
+        error_series = error_series[
+            np.isfinite(error_series)
+        ]
+
+        if len(error_series) == 0:
+            return 0, 0.0, 0.0, 0.0
+
+        n_valid = len(error_series)
+        bias = float(error_series.mean())
+        mae = float(error_series.abs().mean())
+        rmse = float(
+            np.sqrt(
+                (error_series ** 2).mean()
+            )
+        )
+
+        return n_valid, bias, mae, rmse
+
+    print(
+        f"\nExperimento 2 "
+        f"(horizonte, h_cam={CAMERA_HEIGHT_CM:.0f} cm)"
+    )
+
+    print("\nEstados:")
+    print(
+        df["status"]
+        .value_counts()
+        .to_string()
+    )
+
+    n_mask_feet = (
+            df["feet_source"] == "mask_bottom"
+    ).sum()
+
+    n_mask_head = (
+            df["head_source"] == "mask_trim_hair"
+    ).sum()
+
+    print(
+        "\nCorrecciones:"
+        f"\n  pies desde mascara: {n_mask_feet}"
+        f"\n  cabeza desde mascara: {n_mask_head}"
+    )
+
+    print(
+        "\nHorizonte de referencia global "
+        f"(mediana front+back): y = {global_ref:.1f}"
+    )
+
+    # ------------------------------------------------------------
+    # Método vía cubo frente a horizonte compartido
+    # ------------------------------------------------------------
+
+    print(
+        "\nMAE por vista -> horizonte via CUBO "
+        "vs horizonte COMPARTIDO:"
+    )
+
+    for view, group in df.groupby("view"):
+        _, bias_cube, mae_cube, _ = stats(
+            group["error_horizon_cube"]
+        )
+
+        _, bias_shared, mae_shared, _ = stats(
+            group["error_horizon_shared"]
+        )
+
+        print(
+            f"  {view:6s}  "
+            f"cubo MAE={mae_cube:5.1f} "
+            f"(bias {bias_cube:+5.1f})   "
+            f"compartido MAE={mae_shared:5.1f} "
+            f"(bias {bias_shared:+5.1f})"
+        )
+
+    # ------------------------------------------------------------
+    # Comparación de variantes de pie
+    # ------------------------------------------------------------
+
+    print(
+        "\n=== COMPARACION DE PIE "
+        "(MAE / bias por vista, horizonte compartido) ==="
+    )
+
+    print(
+        f"{'vista':6s}  "
+        f"{'single MAE':>10s} "
+        f"{'single bias':>11s}  "
+        f"{'mask MAE':>9s} "
+        f"{'mask bias':>9s}"
+    )
+
+    for view, group in df.groupby("view"):
+        _, bias_single, mae_single, _ = stats(
+            group["error_feet_single"]
+        )
+
+        _, bias_mask, mae_mask, _ = stats(
+            group["error_feet_mask"]
+        )
+
+        print(
+            f"{view:6s}  "
+            f"{mae_single:10.1f} "
+            f"{bias_single:+11.1f}  "
+            f"{mae_mask:9.1f} "
+            f"{bias_mask:+9.1f}"
+        )
+
+    _, global_bias_single, global_mae_single, _ = stats(
+        df["error_feet_single"]
+    )
+
+    _, global_bias_mask, global_mae_mask, _ = stats(
+        df["error_feet_mask"]
+    )
+
+    print(
+        f"{'GLOBAL':6s}  "
+        f"{global_mae_single:10.1f} "
+        f"{global_bias_single:+11.1f}  "
+        f"{global_mae_mask:9.1f} "
+        f"{global_bias_mask:+9.1f}"
+    )
+
+    # ------------------------------------------------------------
+    # Resultado específico de front y back
+    # ------------------------------------------------------------
+
+    fb = df[
+        df["view"].isin(RELIABLE_VIEWS)
+    ].copy()
+
+    n_fb, bias_fb, mae_fb, rmse_fb = stats(
+        fb["error_horizon_shared"]
+    )
+
+    print(
+        "\n>> FRONT+BACK "
+        f"(pie por defecto): "
+        f"n={n_fb}  "
+        f"bias={bias_fb:+.1f}  "
+        f"MAE={mae_fb:.1f}  "
+        f"RMSE={rmse_fb:.1f}"
+    )
+
+    # ============================================================
+    # RESUMEN FINAL
+    # ============================================================
+
+    summary_rows = []
+
+    for view, group in df.groupby("view"):
+        n_view, bias_view, mae_view, rmse_view = stats(
+            group["error_horizon_shared"]
+        )
+
+        summary_rows.append(
+            {
+                "grupo": view,
+                "n": n_view,
+                "bias_cm": round(bias_view, 1),
+                "mae_cm": round(mae_view, 1),
+                "rmse_cm": round(rmse_view, 1),
+            }
+        )
+
+    summary_rows.append(
+        {
+            "grupo": "FRONT+BACK",
+            "n": n_fb,
+            "bias_cm": round(bias_fb, 1),
+            "mae_cm": round(mae_fb, 1),
+            "rmse_cm": round(rmse_fb, 1),
+        }
+    )
+
+    n_global, bias_global, mae_global, rmse_global = stats(
+        df["error_horizon_shared"]
+    )
+
+    summary_rows.append(
+        {
+            "grupo": "GLOBAL",
+            "n": n_global,
+            "bias_cm": round(bias_global, 1),
+            "mae_cm": round(mae_global, 1),
+            "rmse_cm": round(rmse_global, 1),
+        }
+    )
+
+    summary_df = pd.DataFrame(summary_rows)
+
+    summary_df.to_csv(
+        HORIZON_DIR / "horizon_summary.csv",
+        index=False,
+    )
+
+    print("\nArchivos guardados:")
+
+    print(
+        "  "
+        + str(
+            HORIZON_DIR / "horizon_estimates.csv"
+        )
+    )
+
+    print(
+        "  "
+        + str(
+            HORIZON_DIR / "horizon_alignment_by_view.csv"
+        )
+    )
+
+    print(
+        "  "
+        + str(
+            HORIZON_DIR / "horizon_alignment_by_subject.csv"
+        )
+    )
+
+    print(
+        "  "
+        + str(
+            HORIZON_DIR / "horizon_delta_pivot.csv"
+        )
+    )
+
+    print(
+        "  "
+        + str(
+            HORIZON_DIR / "horizon_summary.csv"
+        )
+    )
+
     return df
