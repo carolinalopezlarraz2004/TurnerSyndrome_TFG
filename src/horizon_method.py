@@ -53,6 +53,11 @@ USE_MASK_FEET_LATERAL = True     # pies = fondo de la mascara en left/right
 USE_MASK_HEAD = True             # cabeza = corona de la mascara con recorte de pelo (todas las vistas)
 MAX_HEAD_MOVE_FRAC = 0.12        # aceptar la corona de mascara si difiere < este % de la altura
 HEAD_WIDTH_FRAC = 0.50           # una fila es "cabeza" si su anchura >= 50% de la anchura del craneo
+# En perfil, la corona de la mascara tiende a irse al pelo/mono de atras y sube
+# la cabeza de mas. En laterales limitamos cuanto puede subir la corona por
+# encima de la pose a un TOPE ABSOLUTO (px). Mas robusto que una fraccion (no
+# extrapola). Validado leave-one-subject-out (~30 px). Front/back: sin tope.
+LATERAL_HEAD_MAX_RISE_PX = 30.0
 
 
 # ---------- correcciones de puntos usando la mascara ----------
@@ -115,9 +120,15 @@ def correct_points(view, feet, head, body_mask):
         if ht is not None:
             cap = MAX_HEAD_MOVE_FRAC * (feet[1] - head[1])
             if abs(ht[1] - head[1]) <= cap:
-                info["head_move_px"] = float(head[1] - ht[1])
-                head = ht
-                info["head_source"] = "mask_trim_hair"
+                y_target = float(ht[1])
+                # En laterales, no dejar que la corona suba mas de
+                # LATERAL_HEAD_MAX_RISE_PX por encima de la pose (frena el pelo).
+                if view in ("left", "right"):
+                    y_target = max(y_target, head[1] - LATERAL_HEAD_MAX_RISE_PX)
+                info["head_move_px"] = float(head[1] - y_target)
+                head = np.array([ht[0], y_target], float)
+                info["head_source"] = ("mask_trim_hair_capped" if view in ("left", "right")
+                                       else "mask_trim_hair")
     return feet, head, info
 
 

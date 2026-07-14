@@ -1725,6 +1725,23 @@ def run_corrected_horizon_experiment(
                 reliability = "medium"
 
             elif np.isfinite(
+                y_shared
+            ):
+                # Sin cubo lateral fiable: el mejor recurso es el horizonte
+                # front/back DEL PROPIO SUJETO. La camara no se movio entre
+                # vistas, asi que su horizonte fisico es el mismo; es mas fiable
+                # que el global lateral (que mezcla otros sujetos) y evita los
+                # fallos catastroficos observados cuando el cubo lateral se
+                # detecta mal.
+                selected_horizon = y_shared
+
+                selected_source = (
+                    "subject_front_back_lateral_fallback"
+                )
+
+                reliability = "medium"
+
+            elif np.isfinite(
                 y_global_lateral_loo
             ):
                 selected_horizon = (
@@ -1736,17 +1753,6 @@ def run_corrected_horizon_experiment(
                 )
 
                 reliability = "low"
-
-            elif np.isfinite(
-                y_shared
-            ):
-                selected_horizon = y_shared
-
-                selected_source = (
-                    "shared_front_back_last_resort"
-                )
-
-                reliability = "very_low"
 
             else:
                 selected_horizon = np.nan

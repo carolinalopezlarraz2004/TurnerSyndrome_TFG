@@ -1,9 +1,9 @@
 view,horizon_corrected_source,height_reliability,n
 back,subject_front_back,high,41
 front,subject_front_back,high,41
-left,global_lateral_fallback_loo,low,2
 left,paired_lateral_subject_fallback,medium,2
 left,per_image_cube_lateral,high,37
-right,global_lateral_fallback_loo,low,2
+left,subject_front_back_lateral_fallback,medium,2
 right,paired_lateral_subject_fallback,medium,3
 right,per_image_cube_lateral,high,36
+right,subject_front_back_lateral_fallback,medium,2
