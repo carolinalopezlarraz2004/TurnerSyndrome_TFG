@@ -52,6 +52,12 @@ COLOMBIA_TABLE = COLOMBIA_DIR / "data_files_colombia_features" / "Colombia(Clean
 # Barcelona measurement table.
 BARCELONA_TABLE = BARCELONA_DIR / "data_files_barcelona_features" / "MesuresSTCarolina.xlsx"
 
+# Brazil measurement table.
+# The measurements live in the "Clean" sheet of this workbook, which already
+# follows the same schema as the Colombia raw table (RIGHT/LEFT pairs not yet
+# averaged and no BMI column).
+BRASIL_TABLE = BRASIL_DIR / "data_files_brasil_features" / "Brasil26.xlsx"
+
 
 # ============================================================
 # OUTPUT FOLDERS
@@ -80,6 +86,10 @@ BARCELONA_EQUALIZED_TABLE = (
     BARCELONA_DIR / "data_files_barcelona_features" / "Barcelona_equalized.csv"
 )
 
+BRASIL_EQUALIZED_TABLE = (
+    BRASIL_DIR / "data_files_brasil_features" / "Brasil_equalized.csv"
+)
+
 
 # ============================================================
 # PREPROCESSED TABLE OUTPUTS
@@ -92,6 +102,10 @@ COLOMBIA_PREPROCESSED_TABLE = (
 
 BARCELONA_PREPROCESSED_TABLE = (
     BARCELONA_DIR / "data_files_barcelona_features" / "Barcelona_preprocessed.csv"
+)
+
+BRASIL_PREPROCESSED_TABLE = (
+    BRASIL_DIR / "data_files_brasil_features" / "Brasil_preprocessed.csv"
 )
 
 
@@ -150,7 +164,7 @@ PSEUDONYMIZATION_SALT = "TurnerTFG_2026_private_salt"
 # ============================================================
 
 # ArUco dictionary used by the cube markers.
-# Used for Colombia and future Brazil images.
+# Used for Colombia and Brazil images.
 ARUCO_DICT = cv2.aruco.DICT_4X4_50
 
 # Physical edge of the cube in centimeters.
@@ -162,6 +176,9 @@ CUBE_EDGE_CM = None
 # According to the acquisition protocol, Colombia images include
 # two cubes with 10 cm x 10 cm ArUco markers.
 # This value is used to convert ArUco side length from pixels to centimeters.
+# NOTE: confirm that the Brazil cubes also use 10 cm markers; if the physical
+# size differs, this constant (or a per-site override) must be adjusted before
+# running the Brazil height experiments.
 ARUCO_MARKER_SIZE_CM = 10.0
 
 # Altura de la camara respecto al suelo (cm). La camara estuvo nivelada y fija a

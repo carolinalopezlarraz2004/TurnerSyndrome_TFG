@@ -229,6 +229,7 @@ def discover_subject_images(site_dir: Path, site: str) -> dict[str, list[ImageAs
 
     return dict(assets_by_subject)
 
+
 # ============================================================
 # TABLE LOADING
 # ============================================================
@@ -265,3 +266,27 @@ def load_barcelona_tables(table_path: Path) -> dict[str, pd.DataFrame]:
     """
 
     return pd.read_excel(table_path, sheet_name=None)
+
+
+def load_brasil_table(table_path: Path, sheet_name: str = "Clean") -> pd.DataFrame:
+    """
+    Purpose:
+        Read the Brazil measurements table.
+
+    Input:
+        table_path (Path):
+            Path to the Brazil XLSX file.
+
+        sheet_name (str):
+            Name of the sheet holding the measurements.
+            Defaults to "Clean", which already follows the same schema as the
+            Colombia raw table (two-row header, RIGHT/LEFT pairs not averaged
+            and no BMI column).
+
+    Output:
+        pd.DataFrame:
+            Original Brazil table loaded as a dataframe.
+            Like Colombia, it is read with a two-row header (header=[0, 1]).
+    """
+
+    return pd.read_excel(table_path, sheet_name=sheet_name, header=[0, 1])

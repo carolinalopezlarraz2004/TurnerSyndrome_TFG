@@ -1,3 +1,4 @@
+import shutil
 import pandas as pd
 from src.config import (
     COLOMBIA_DIR,
@@ -5,13 +6,16 @@ from src.config import (
     BRASIL_DIR,
     COLOMBIA_TABLE,
     BARCELONA_TABLE,
+    BRASIL_TABLE,
     COLOMBIA_PREPROCESSED_TABLE,
     BARCELONA_PREPROCESSED_TABLE,
+    BRASIL_PREPROCESSED_TABLE,
     QUALITY_REPORT_TABLE,
     FLAGGED_VALUES_REPORT_TABLE,
     PSEUDO_ID_MAPPING_PRIVATE_TABLE,
     IMAGE_CALIBRATION_TABLE,
     CALIBRATION_REFERENCES_TABLE,
+    DEBUG_IMAGE_CALIBRATION_DIR,
     VERIFICATION_DIR,
     create_output_folders,
 )
@@ -19,6 +23,7 @@ from src.io_data import (
     discover_subject_images,
     load_colombia_table,
     load_barcelona_tables,
+    load_brasil_table,
 )
 from src.harmonize_features import save_equalized_tables
 from src.data_dictionary import save_canonical_dictionary
@@ -36,18 +41,16 @@ from src.image_calibration import (
 )
 from src.image_calibration import (sweep_crown_offset_factor, plot_view_results, apply_calibrated_correction, compare_correction,)
 from src.horizon_method import run_horizon_experiment
-
 from src.lateral_skeletal_height import (
     run_lateral_skeletal_experiment,
 )
-
 from src.lateral_horizon_diagnostic import (
     run_lateral_horizon_diagnostic,
 )
-
 from src.horizon_corrected import (
     run_corrected_horizon_experiment,
 )
+
 
 def read_files(site: str):
     """
@@ -59,120 +62,41 @@ def read_files(site: str):
         "BR": BRASIL_DIR,
     }
     return discover_subject_images(site_dirs[site], site=site)
+
+
 def read_tables():
     """
     Read the original measurement tables.
     """
     colombia_df = load_colombia_table(COLOMBIA_TABLE)
     barcelona_sheets = load_barcelona_tables(BARCELONA_TABLE)
-    return colombia_df, barcelona_sheets
-def main():
-    # ========================================================
-    # CREATE OUTPUT FOLDERS
-    # ========================================================
+    brasil_df = load_brasil_table(BRASIL_TABLE)
+    return colombia_df, barcelona_sheets, brasil_df
+
+
+# ============================================================
+# IMAGE PIPELINE (one full run for a single site)
+# ============================================================
+def run_image_pipeline_for_site(site: str, assets_by_subject: dict, manual_heights_df: pd.DataFrame):
+    """
+    Run the full image pipeline (calibration + Experiments 1, 2, 2B, 2-corrected
+    and 3) for ONE site. The experiment functions themselves are site-agnostic;
+    they always write to the fixed output paths in config, so archive_site_outputs()
+    must be called right after this to move the results into a per-site folder.
+
+    Input:
+        site: site code ("CO", "BR", ...), used only for the printed header.
+        assets_by_subject: images of that site (from read_files(site)).
+        manual_heights_df: equalized table of that site (provides HEIGHT_cm).
+    """
+    # Make sure the standard output scaffolding exists (it may have been moved
+    # into a per-site folder by a previous archive step).
     create_output_folders()
-    # ========================================================
-    # READ IMAGE FILES AND ORIGINAL TABLES
-    # ========================================================
-    # For now, we start with Colombia because the ArUco marker size is confirmed:
-    # each marker is 10 cm x 10 cm.
-    assets_by_subject = read_files("CO")
-    colombia_df, barcelona_sheets = read_tables()
-    print(f"Subjects found in Colombia image folder: {len(assets_by_subject)}")
-    print("\nColombia table:")
-    print(colombia_df.shape)
-    print("\nBarcelona sheets:")
-    for sheet_name, df in barcelona_sheets.items():
-        print(f"  - {sheet_name}: {df.shape}")
-    print("\nColombia columns:")
-    print(colombia_df.columns.tolist())
-    print("\nBarcelona Raw columns:")
-    print(barcelona_sheets["Raw_Match_Anon"].columns.tolist())
-    print("\nBarcelona Recon columns:")
-    print(barcelona_sheets["3D_Recon_Clean"].columns.tolist())
-    # ========================================================
-    # EQUALIZATION
-    # ========================================================
-    colombia_equalized, barcelona_equalized = save_equalized_tables()
-    print("\nColombia equalized:")
-    print(colombia_equalized.shape)
-    print("\nBarcelona equalized:")
-    print(barcelona_equalized.shape)
-    print("\nColumns are equal:")
-    print(list(colombia_equalized.columns) == list(barcelona_equalized.columns))
-    # ========================================================
-    # CANONICAL DATA DICTIONARY
-    # ========================================================
-    canonical_dictionary = save_canonical_dictionary()
-    print("\nCanonical dictionary saved:")
-    print(canonical_dictionary.shape)
-    # ========================================================
-    # QUALITY CONTROL + MISSING VALUE IMPUTATION
-    # ========================================================
-    colombia_qc = add_quality_control_flags(colombia_equalized)
-    barcelona_qc = add_quality_control_flags(barcelona_equalized)
-    colombia_preprocessed = impute_missing_values(colombia_qc)
-    barcelona_preprocessed = impute_missing_values(barcelona_qc)
-    # ========================================================
-    # PSEUDONYMIZATION
-    # ========================================================
-    colombia_preprocessed, colombia_mapping = pseudonymize_preprocessed_table(
-        df=colombia_preprocessed,
-        site_prefix="CO",
-        site_name="Colombia",
-    )
-    barcelona_preprocessed, barcelona_mapping = pseudonymize_preprocessed_table(
-        df=barcelona_preprocessed,
-        site_prefix="ES",
-        site_name="Barcelona",
-    )
-    pseudo_id_mapping = pd.concat(
-        [colombia_mapping, barcelona_mapping],
-        ignore_index=True,
-    )
-    PSEUDO_ID_MAPPING_PRIVATE_TABLE.parent.mkdir(parents=True, exist_ok=True)
-    pseudo_id_mapping.to_csv(PSEUDO_ID_MAPPING_PRIVATE_TABLE, index=False)
-    colombia_preprocessed.to_csv(COLOMBIA_PREPROCESSED_TABLE, index=False)
-    barcelona_preprocessed.to_csv(BARCELONA_PREPROCESSED_TABLE, index=False)
-    print("\nPseudonymized preprocessed tables saved:")
-    print(f"  - {COLOMBIA_PREPROCESSED_TABLE}")
-    print(f"  - {BARCELONA_PREPROCESSED_TABLE}")
-    print("\nPrivate pseudo-ID mapping saved:")
-    print(f"  - {PSEUDO_ID_MAPPING_PRIVATE_TABLE}")
-    print(pseudo_id_mapping.shape)
-    # ========================================================
-    # QUALITY REPORTS
-    # ========================================================
-    quality_report = combine_quality_reports(
-        colombia_qc=colombia_preprocessed,
-        barcelona_qc=barcelona_preprocessed,
-    )
-    QUALITY_REPORT_TABLE.parent.mkdir(parents=True, exist_ok=True)
-    quality_report.to_csv(QUALITY_REPORT_TABLE, index=False)
-    print("\nQuality report saved:")
-    print(f"  - {QUALITY_REPORT_TABLE}")
-    print(quality_report.shape)
-    flagged_values_report = combine_flagged_values_reports(
-        colombia_qc=colombia_preprocessed,
-        barcelona_qc=barcelona_preprocessed,
-    )
-    FLAGGED_VALUES_REPORT_TABLE.parent.mkdir(parents=True, exist_ok=True)
-    flagged_values_report.to_csv(FLAGGED_VALUES_REPORT_TABLE, index=False)
-    print("\nFlagged values report saved:")
-    print(f"  - {FLAGGED_VALUES_REPORT_TABLE}")
-    print(flagged_values_report.shape)
-    print("\nColombia QC flag counts:")
-    print(colombia_preprocessed["QC_FLAGS"].value_counts(dropna=False))
-    print("\nBarcelona QC flag counts:")
-    print(barcelona_preprocessed["QC_FLAGS"].value_counts(dropna=False))
-    print("\nColombia imputed values:")
-    print(colombia_preprocessed["N_IMPUTED_VALUES"].sum())
-    print("\nBarcelona imputed values:")
-    print(barcelona_preprocessed["N_IMPUTED_VALUES"].sum())
+
     # ========================================================
     # IMAGE CALIBRATION
     # ========================================================
-    # This step estimates the cm/pixel scale for each Colombia image.
+    # This step estimates the cm/pixel scale for each image of the site.
     # It also saves verification images so we can visually check whether
     # the ArUco markers were detected correctly.
     calibration_df, calibration_references_df = save_image_calibration_table(
@@ -208,7 +132,7 @@ def main():
         assets_by_subject=assets_by_subject,
         calibration_df=calibration_df,
         references_df=calibration_references_df,
-        manual_heights_df=colombia_equalized,
+        manual_heights_df=manual_heights_df,
         max_images=None,
         save_debug=True,
     )
@@ -250,19 +174,16 @@ def main():
     # EXPERIMENT 2: MÉTODO DEL HORIZONTE
     # Cámara situada a 1 metro de altura
     # ========================================================
-
     horizon_df = run_horizon_experiment(
         assets_by_subject=assets_by_subject,
-        manual_heights_df=colombia_equalized,
+        manual_heights_df=manual_heights_df,
         max_images=None,
         save_debug=True,
     )
-
     print(
         "\nExperimento 2 "
         "(método del horizonte) guardado:"
     )
-
     print(
         " - "
         + str(
@@ -271,11 +192,9 @@ def main():
             / "horizon_estimates.csv"
         )
     )
-
     print(
         "\nEstados del Experimento 2:"
     )
-
     print(
         horizon_df[
             "status"
@@ -283,11 +202,9 @@ def main():
             dropna=False
         )
     )
-
     # ========================================================
     # EXPERIMENT 2B: DIAGNÓSTICO DEL HORIZONTE LATERAL
     # ========================================================
-
     # Este análisis utiliza los resultados ya generados por el
     # Experimento 2 y compara dos alternativas en left/right:
     #
@@ -296,7 +213,6 @@ def main():
     #
     # De esta manera podemos comprobar si el elevado error lateral
     # está provocado por una estimación incorrecta del horizonte.
-
     (
         lateral_horizon_predictions_df,
         lateral_horizon_summary_df,
@@ -304,11 +220,9 @@ def main():
         horizon_estimates=horizon_df,
         camera_height_cm=100.0,
     )
-
     print(
         "\nDiagnóstico del horizonte lateral guardado:"
     )
-
     print(
         " - "
         + str(
@@ -317,11 +231,9 @@ def main():
             / "lateral_horizon_image_predictions.csv"
         )
     )
-
     print(
         "\nResumen del diagnóstico del horizonte lateral:"
     )
-
     print(
         lateral_horizon_summary_df.round(
             2
@@ -329,24 +241,20 @@ def main():
             index=False
         )
     )
-
     # ========================================================
     # EXPERIMENT 2 CORRECTED: HORIZONTE SEGÚN LA VISTA
     # ========================================================
-
     corrected_horizon_df = (
         run_corrected_horizon_experiment(
             assets_by_subject=assets_by_subject,
-            manual_heights_df=colombia_equalized,
+            manual_heights_df=manual_heights_df,
             max_images=None,
             save_debug=True,
         )
     )
-
     print(
         "\nExperimento 2 corregido guardado:"
     )
-
     print(
         " - "
         + str(
@@ -356,12 +264,10 @@ def main():
             / "corrected_horizon_estimates.csv"
         )
     )
-
     # ========================================================
     # EXPERIMENT 3: ALTURA LATERAL MEDIANTE FEATURES
     # ESQUELÉTICAS Y FUSIÓN LEFT/RIGHT
     # ========================================================
-
     # Este experimento utiliza las vistas left y right para extraer:
     #
     #   - una estimación métrica inicial;
@@ -371,23 +277,20 @@ def main():
     #
     # Después fusiona ambas vistas en una única fila por sujeto
     # y compara una calibración lineal con una regresión Ridge.
-
     (
         lateral_predictions_df,
         lateral_summary_df,
     ) = run_lateral_skeletal_experiment(
         assets_by_subject=assets_by_subject,
-        manual_heights_df=colombia_equalized,
+        manual_heights_df=manual_heights_df,
         calibration_df=calibration_df,
         references_df=calibration_references_df,
         max_images=None,
     )
-
     print(
         "\nExperimento 3 "
         "(estimación lateral esquelética) guardado:"
     )
-
     print(
         " - "
         + str(
@@ -396,11 +299,9 @@ def main():
             / "lateral_subject_predictions.csv"
         )
     )
-
     print(
         "\nResumen del Experimento 3:"
     )
-
     print(
         lateral_summary_df.round(
             2
@@ -408,6 +309,205 @@ def main():
             index=False
         )
     )
+
+
+# ============================================================
+# ARCHIVE ONE SITE'S IMAGE OUTPUTS INTO ITS OWN FOLDER
+# ============================================================
+def archive_site_outputs(site_folder: str) -> None:
+    """
+    Move the image-pipeline outputs of the site just processed into
+    outputs/verification/<site_folder>/, so the next site does not overwrite them.
+
+    Everything the experiments write lives under VERIFICATION_DIR, except
+    image_calibration.csv (under outputs/tables/) and the calibration debug
+    images (under outputs/debug_image_calibration/), which are moved too.
+    """
+    reserved = {"colombia", "brasil", "barcelona"}
+    dest = VERIFICATION_DIR / site_folder
+    dest.mkdir(parents=True, exist_ok=True)
+
+    # 1. Everything currently under VERIFICATION_DIR (except the site archives).
+    for entry in list(VERIFICATION_DIR.iterdir()):
+        if entry.name in reserved:
+            continue
+        target = dest / entry.name
+        if target.exists():
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        shutil.move(str(entry), str(target))
+
+    # 2. image_calibration.csv (written under outputs/tables/).
+    if IMAGE_CALIBRATION_TABLE.exists():
+        target = dest / IMAGE_CALIBRATION_TABLE.name
+        if target.exists():
+            target.unlink()
+        shutil.move(str(IMAGE_CALIBRATION_TABLE), str(target))
+
+    # 3. Calibration debug images, if present.
+    if DEBUG_IMAGE_CALIBRATION_DIR.exists():
+        target = dest / DEBUG_IMAGE_CALIBRATION_DIR.name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.move(str(DEBUG_IMAGE_CALIBRATION_DIR), str(target))
+
+    print(f"\n>>> Resultados de imagen archivados en: {dest}")
+
+
+def main():
+    # ========================================================
+    # CREATE OUTPUT FOLDERS
+    # ========================================================
+    create_output_folders()
+    # ========================================================
+    # READ IMAGE FILES AND ORIGINAL TABLES
+    # ========================================================
+    # For now, we start with Colombia because the ArUco marker size is confirmed:
+    # each marker is 10 cm x 10 cm.
+    assets_by_subject = read_files("CO")
+    colombia_df, barcelona_sheets, brasil_df = read_tables()
+    print(f"Subjects found in Colombia image folder: {len(assets_by_subject)}")
+    print("\nColombia table:")
+    print(colombia_df.shape)
+    print("\nBarcelona sheets:")
+    for sheet_name, df in barcelona_sheets.items():
+        print(f"  - {sheet_name}: {df.shape}")
+    print("\nBrasil table:")
+    print(brasil_df.shape)
+    print("\nColombia columns:")
+    print(colombia_df.columns.tolist())
+    print("\nBarcelona Raw columns:")
+    print(barcelona_sheets["Raw_Match_Anon"].columns.tolist())
+    print("\nBarcelona Recon columns:")
+    print(barcelona_sheets["3D_Recon_Clean"].columns.tolist())
+    # ========================================================
+    # EQUALIZATION
+    # ========================================================
+    colombia_equalized, barcelona_equalized, brasil_equalized = save_equalized_tables()
+    print("\nColombia equalized:")
+    print(colombia_equalized.shape)
+    print("\nBarcelona equalized:")
+    print(barcelona_equalized.shape)
+    print("\nBrasil equalized:")
+    print(brasil_equalized.shape)
+    print("\nColumns are equal (Colombia == Barcelona == Brasil):")
+    print(
+        list(colombia_equalized.columns)
+        == list(barcelona_equalized.columns)
+        == list(brasil_equalized.columns)
+    )
+    # ========================================================
+    # CANONICAL DATA DICTIONARY
+    # ========================================================
+    canonical_dictionary = save_canonical_dictionary()
+    print("\nCanonical dictionary saved:")
+    print(canonical_dictionary.shape)
+    # ========================================================
+    # QUALITY CONTROL + MISSING VALUE IMPUTATION
+    # ========================================================
+    colombia_qc = add_quality_control_flags(colombia_equalized)
+    barcelona_qc = add_quality_control_flags(barcelona_equalized)
+    brasil_qc = add_quality_control_flags(brasil_equalized)
+    colombia_preprocessed = impute_missing_values(colombia_qc)
+    barcelona_preprocessed = impute_missing_values(barcelona_qc)
+    brasil_preprocessed = impute_missing_values(brasil_qc)
+    # ========================================================
+    # PSEUDONYMIZATION
+    # ========================================================
+    colombia_preprocessed, colombia_mapping = pseudonymize_preprocessed_table(
+        df=colombia_preprocessed,
+        site_prefix="CO",
+        site_name="Colombia",
+    )
+    barcelona_preprocessed, barcelona_mapping = pseudonymize_preprocessed_table(
+        df=barcelona_preprocessed,
+        site_prefix="ES",
+        site_name="Barcelona",
+    )
+    brasil_preprocessed, brasil_mapping = pseudonymize_preprocessed_table(
+        df=brasil_preprocessed,
+        site_prefix="BR",
+        site_name="Brasil",
+    )
+    pseudo_id_mapping = pd.concat(
+        [colombia_mapping, barcelona_mapping, brasil_mapping],
+        ignore_index=True,
+    )
+    PSEUDO_ID_MAPPING_PRIVATE_TABLE.parent.mkdir(parents=True, exist_ok=True)
+    pseudo_id_mapping.to_csv(PSEUDO_ID_MAPPING_PRIVATE_TABLE, index=False)
+    colombia_preprocessed.to_csv(COLOMBIA_PREPROCESSED_TABLE, index=False)
+    barcelona_preprocessed.to_csv(BARCELONA_PREPROCESSED_TABLE, index=False)
+    brasil_preprocessed.to_csv(BRASIL_PREPROCESSED_TABLE, index=False)
+    print("\nPseudonymized preprocessed tables saved:")
+    print(f"  - {COLOMBIA_PREPROCESSED_TABLE}")
+    print(f"  - {BARCELONA_PREPROCESSED_TABLE}")
+    print(f"  - {BRASIL_PREPROCESSED_TABLE}")
+    print("\nPrivate pseudo-ID mapping saved:")
+    print(f"  - {PSEUDO_ID_MAPPING_PRIVATE_TABLE}")
+    print(pseudo_id_mapping.shape)
+    # ========================================================
+    # QUALITY REPORTS
+    # ========================================================
+    quality_report = combine_quality_reports(
+        colombia_qc=colombia_preprocessed,
+        barcelona_qc=barcelona_preprocessed,
+        brasil_qc=brasil_preprocessed,
+    )
+    QUALITY_REPORT_TABLE.parent.mkdir(parents=True, exist_ok=True)
+    quality_report.to_csv(QUALITY_REPORT_TABLE, index=False)
+    print("\nQuality report saved:")
+    print(f"  - {QUALITY_REPORT_TABLE}")
+    print(quality_report.shape)
+    flagged_values_report = combine_flagged_values_reports(
+        colombia_qc=colombia_preprocessed,
+        barcelona_qc=barcelona_preprocessed,
+        brasil_qc=brasil_preprocessed,
+    )
+    FLAGGED_VALUES_REPORT_TABLE.parent.mkdir(parents=True, exist_ok=True)
+    flagged_values_report.to_csv(FLAGGED_VALUES_REPORT_TABLE, index=False)
+    print("\nFlagged values report saved:")
+    print(f"  - {FLAGGED_VALUES_REPORT_TABLE}")
+    print(flagged_values_report.shape)
+    print("\nColombia QC flag counts:")
+    print(colombia_preprocessed["QC_FLAGS"].value_counts(dropna=False))
+    print("\nBarcelona QC flag counts:")
+    print(barcelona_preprocessed["QC_FLAGS"].value_counts(dropna=False))
+    print("\nBrasil QC flag counts:")
+    print(brasil_preprocessed["QC_FLAGS"].value_counts(dropna=False))
+    print("\nColombia imputed values:")
+    print(colombia_preprocessed["N_IMPUTED_VALUES"].sum())
+    print("\nBarcelona imputed values:")
+    print(barcelona_preprocessed["N_IMPUTED_VALUES"].sum())
+    print("\nBrasil imputed values:")
+    print(brasil_preprocessed["N_IMPUTED_VALUES"].sum())
+    # ========================================================
+    # IMAGE PIPELINE PER SITE (Fase B)
+    # ========================================================
+    # Both Colombia and Brazil use ArUco 10 cm markers and a camera fixed and
+    # levelled at 1 m, so both follow the same image pipeline. Each site is run
+    # separately and its results are archived into outputs/verification/<site>/
+    # so they do not overwrite each other.
+    print("\n" + "=" * 60)
+    print("IMAGE PIPELINE - COLOMBIA")
+    print("=" * 60)
+    run_image_pipeline_for_site(
+        site="CO",
+        assets_by_subject=read_files("CO"),
+        manual_heights_df=colombia_equalized,
+    )
+    archive_site_outputs("colombia")
+
+    print("\n" + "=" * 60)
+    print("IMAGE PIPELINE - BRASIL")
+    print("=" * 60)
+    run_image_pipeline_for_site(
+        site="BR",
+        assets_by_subject=read_files("BR"),
+        manual_heights_df=brasil_equalized,
+    )
+    archive_site_outputs("brasil")
 
 
 if __name__ == "__main__":

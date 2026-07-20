@@ -1,10 +1,11 @@
 """
 harmonize_features.py
 
-This module equalizes the Colombia and Barcelona anthropometric feature tables.
+This module equalizes the Colombia, Barcelona and Brazil anthropometric feature tables.
 
 Colombia is used as the master schema.
-Barcelona is transformed to match Colombia in column names, units, resolution and order.
+Barcelona and Brazil are transformed to match Colombia in column names, units,
+resolution and order.
 """
 
 import pandas as pd
@@ -12,8 +13,10 @@ import pandas as pd
 from src.config import (
     COLOMBIA_TABLE,
     BARCELONA_TABLE,
+    BRASIL_TABLE,
     COLOMBIA_EQUALIZED_TABLE,
     BARCELONA_EQUALIZED_TABLE,
+    BRASIL_EQUALIZED_TABLE,
 )
 
 
@@ -27,7 +30,7 @@ FINAL_COLUMNS = [
     "AGE",
     "HEIGHT_cm",
     "WEIGHT_kg",
-    "IMC_kg_m2",
+    "PONDERAL_INDEX_kg_m3",
     "PER_Skull_cm",
     "PER_Neck_cm",
     "THICK_WingedNeck_cm",
@@ -116,9 +119,9 @@ def equalize_colombia() -> pd.DataFrame:
 
     equalized = df.copy()
 
-    # New BMI column, created to match Barcelona.
-    equalized["IMC_kg_m2"] = (
-        equalized["WEIGHT_kg"] / (equalized["HEIGHT_cm"] / 100) ** 2
+    # Ponderal index (Rohrer): weight / height_m**3. Replaces BMI.
+    equalized["PONDERAL_INDEX_kg_m3"] = (
+        equalized["WEIGHT_kg"] / (equalized["HEIGHT_cm"] / 100) ** 3
     )
 
     # Collapse right/left columns into one average column.
@@ -183,9 +186,9 @@ def equalize_barcelona() -> pd.DataFrame:
     equalized["HEIGHT_cm"] = pd.to_numeric(raw["Altura_m"], errors="coerce") * 100
     equalized["WEIGHT_kg"] = pd.to_numeric(raw["Peso_kg"], errors="coerce")
 
-    # BMI is recalculated, not taken from Excel.
-    equalized["IMC_kg_m2"] = (
-        equalized["WEIGHT_kg"] / (equalized["HEIGHT_cm"] / 100) ** 2
+    # Ponderal index (Rohrer) is computed, not taken from Excel.
+    equalized["PONDERAL_INDEX_kg_m3"] = (
+        equalized["WEIGHT_kg"] / (equalized["HEIGHT_cm"] / 100) ** 3
     )
 
     # Head and neck.
@@ -292,26 +295,87 @@ def equalize_barcelona() -> pd.DataFrame:
 
 
 # ============================================================
+# BRAZIL
+# ============================================================
+
+def equalize_brasil() -> pd.DataFrame:
+    """
+    Purpose:
+        Read and equalize the Brazil table to the Colombia schema.
+
+    Output:
+        pd.DataFrame:
+            Brazil table with the final equalized column structure.
+    """
+
+    # The "Clean" sheet already follows the Colombia raw layout: it has two
+    # header rows (header=1 keeps the real column names), the RIGHT/LEFT pairs
+    # are still separate, and there is no BMI column. Because of that, the
+    # transformation is identical to Colombia's.
+    df = pd.read_excel(BRASIL_TABLE, sheet_name="Clean", header=1)
+
+    equalized = df.copy()
+
+    # Ponderal index (Rohrer): weight / height_m**3. Replaces BMI.
+    equalized["PONDERAL_INDEX_kg_m3"] = (
+        equalized["WEIGHT_kg"] / (equalized["HEIGHT_cm"] / 100) ** 3
+    )
+
+    # Collapse right/left columns into one average column.
+    equalized["DIST_SupScapularAngToC7_AVG_cm"] = mean_columns(
+        equalized,
+        [
+            "DIST_SupScapularAngToC7_RIGHT_cm",
+            "DIST_SupScapularAngToC7_LEFT_cm",
+        ],
+    )
+
+    equalized["DIST_SupScapularAngToT10_AVG_cm"] = mean_columns(
+        equalized,
+        [
+            "DIST_SupScapularAngToT10_RIGHT_cm",
+            "DIST_SupScapularAngToT10_LEFT_cm",
+        ],
+    )
+
+    equalized["DIST_SternalEndClavicleToSternalManubrium_AVG_cm"] = mean_columns(
+        equalized,
+        [
+            "DIST_SternalEndClavicleToSternalManubrium_RIGHT_cm",
+            "DIST_SternalEndClavicleToSternalManubrium_LEFT_cm",
+        ],
+    )
+
+    equalized = equalized[FINAL_COLUMNS]
+    equalized = force_numeric_features(equalized)
+
+    return equalized
+
+
+# ============================================================
 # SAVE OUTPUTS
 # ============================================================
 
-def save_equalized_tables() -> tuple[pd.DataFrame, pd.DataFrame]:
+def save_equalized_tables() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Purpose:
-        Create and save the equalized Colombia and Barcelona CSV files.
+        Create and save the equalized Colombia, Barcelona and Brazil CSV files.
 
     Output:
-        tuple[pd.DataFrame, pd.DataFrame]:
-            Equalized Colombia and Barcelona dataframes.
+        tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+            Equalized Colombia, Barcelona and Brazil dataframes (in that order).
     """
 
     colombia_equalized = equalize_colombia()
     barcelona_equalized = equalize_barcelona()
+    brasil_equalized = equalize_brasil()
 
     COLOMBIA_EQUALIZED_TABLE.parent.mkdir(parents=True, exist_ok=True)
     BARCELONA_EQUALIZED_TABLE.parent.mkdir(parents=True, exist_ok=True)
+    BRASIL_EQUALIZED_TABLE.parent.mkdir(parents=True, exist_ok=True)
 
     colombia_equalized.to_csv(COLOMBIA_EQUALIZED_TABLE, index=False)
     barcelona_equalized.to_csv(BARCELONA_EQUALIZED_TABLE, index=False)
+    brasil_equalized.to_csv(BRASIL_EQUALIZED_TABLE, index=False)
 
-    return colombia_equalized, barcelona_equalized
+    return colombia_equalized, barcelona_equalized, brasil_equalized

@@ -4,7 +4,7 @@ TYPE,metadata,,Clinical group of the subject: Turner syndrome or control.,TYPE,T
 AGE,general,years,Subject age at acquisition.,AGE,Age,Direct mapping.,Age is kept as metadata and possible confounder.
 HEIGHT_cm,general,cm,Standing body height.,HEIGHT_cm,Altura_m,Barcelona height converted from meters to centimeters.,Used for BMI calculation and later normalized indices.
 WEIGHT_kg,general,kg,Body weight.,WEIGHT_kg,Peso_kg,Direct mapping.,
-IMC_kg_m2,general,kg/m2,Body mass index.,computed from HEIGHT_cm and WEIGHT_kg,computed from HEIGHT_cm and WEIGHT_kg,Recomputed as weight divided by squared height in meters.,Recomputed for both datasets to ensure consistency.
+PONDERAL_INDEX_kg_m3,general,kg/m3,Ponderal index (Rohrer index).,computed from HEIGHT_cm and WEIGHT_kg,computed from HEIGHT_cm and WEIGHT_kg,Recomputed as weight divided by cubed height in meters.,Recomputed for all datasets to ensure consistency.
 PER_Skull_cm,head_neck,cm,Skull/head perimeter.,PER_Skull_cm,Perimetro_craneal_cm,Direct mapping.,
 PER_Neck_cm,head_neck,cm,Neck perimeter.,PER_Neck_cm,Perimetro_cuello_cm,Direct mapping.,
 THICK_WingedNeck_cm,head_neck,cm,Thickness or width associated with winged neck morphology.,THICK_WingedNeck_cm,Grosor_cuello_alado_cm,Direct mapping.,Potentially relevant feature for Turner syndrome phenotype.

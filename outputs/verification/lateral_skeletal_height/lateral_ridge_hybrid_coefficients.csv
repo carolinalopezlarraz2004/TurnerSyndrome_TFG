@@ -1,7 +1,0 @@
-model,feature,alpha,coefficient_standardised,coefficient_original_units,intercept_original_units
-ridge_initial_plus_ratios,initial_height_cm,10.0,7.0242388788234145,0.2734317812039687,177.1917062372644
-ridge_initial_plus_ratios,head_shoulder_ratio,10.0,-5.795879389169682,-407.8161201861253,177.1917062372644
-ridge_initial_plus_ratios,shoulder_hip_ratio,10.0,-0.8440570027641364,-70.97867524647492,177.1917062372644
-ridge_initial_plus_ratios,hip_knee_ratio,10.0,2.005149989300452,203.44371737750214,177.1917062372644
-ridge_initial_plus_ratios,knee_ankle_ratio,10.0,-0.8098615479023359,-78.75825258036149,177.1917062372644
-ridge_initial_plus_ratios,ankle_sole_ratio,10.0,-1.0519808250402212,-74.03873654642815,177.1917062372644
