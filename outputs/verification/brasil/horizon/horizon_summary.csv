@@ -1,7 +1,7 @@
 grupo,n,bias_cm,mae_cm,rmse_cm
 back,50,2.5,2.8,3.8
 front,50,2.2,2.8,3.8
-left,50,-9.6,9.6,11.8
+left,50,-9.5,9.6,11.8
 right,50,-9.4,9.5,11.6
 FRONT+BACK,100,2.4,2.8,3.8
 GLOBAL,200,-3.5,6.2,8.7

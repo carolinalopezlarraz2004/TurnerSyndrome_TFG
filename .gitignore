@@ -26,3 +26,7 @@ Thumbs.db
 
 # Outputs generados
 outputs/private
+
+# Temporales de Office (archivos de bloqueo de Excel/Word)
+~$*
+*.tmp

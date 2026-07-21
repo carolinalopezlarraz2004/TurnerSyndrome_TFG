@@ -1,0 +1,9 @@
+site,HEAD_WIDTH_FRAC,n_fb,MAE_front_back,MAE_left,MAE_right,mejor_fb
+Colombia,0.45,82,2.23,5.36,5.84,<== mejor
+Colombia,0.5,82,2.3,5.28,5.71,
+Colombia,0.55,82,2.58,5.21,5.63,
+Colombia,0.6,82,2.92,5.41,5.39,
+Brasil,0.45,100,3.04,3.57,3.38,
+Brasil,0.5,100,2.81,3.19,3.13,
+Brasil,0.55,100,2.66,2.81,2.71,
+Brasil,0.6,100,2.42,2.45,2.45,<== mejor

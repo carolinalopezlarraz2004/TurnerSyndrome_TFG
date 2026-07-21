@@ -1,0 +1,6 @@
+view,horizon_corrected_source,height_reliability,n
+back,subject_front_back,high,50
+front,subject_front_back,high,50
+left,per_image_cube_lateral,high,50
+right,paired_lateral_subject_fallback,medium,1
+right,per_image_cube_lateral,high,49
